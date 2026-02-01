@@ -104,4 +104,6 @@ uv run --no-sync vllm serve $MODEL_NAME \
     --gpu-memory-utilization $GPU_MEMORY_UTILIZATION \
     --trust-remote-code \
     --enable-prefix-caching \
-    --dtype auto
+    --dtype auto \
+    --reasoning-parser openai_gptoss \
+    --tool-call-parser harmony

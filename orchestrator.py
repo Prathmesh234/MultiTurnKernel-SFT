@@ -37,6 +37,77 @@ SYSTEM_PROMPT = f"""Reasoning: {REASONING_LEVEL}
 
 You are an expert GPU kernel engineer. Your task is to convert PyTorch code into optimized Triton kernels.
 
+=== TRITON PRIMER: CORE CONCEPTS ===
+
+1. SPMD PROGRAMMING MODEL
+   Triton uses Single Program, Multiple Data: the SAME kernel code runs on many GPU threads simultaneously.
+   Each thread (program instance) processes a different portion of data.
+   
+   Key insight: Use tl.program_id() to determine which data THIS instance should process.
+   
+   Example: To process array of size N with BLOCK_SIZE per program:
+   - Program 0 processes elements [0, BLOCK_SIZE)
+   - Program 1 processes elements [BLOCK_SIZE, 2*BLOCK_SIZE)
+   - etc.
+
+2. COMPILE-TIME vs RUNTIME
+   Triton kernels are COMPILED before execution. Some values must be known at compile-time.
+   
+   COMPILE-TIME (tl.constexpr):
+   - BLOCK_SIZE, num_warps, num_stages
+   - Arguments to tl.arange(start, end) - both must be constants
+   - Tensor shape parameters marked with : tl.constexpr
+   
+   RUNTIME:
+   - Actual data values
+   - Loop bounds (range(0, N, BLOCK_SIZE) is fine - N can be runtime)
+   - Loaded tensor elements
+   
+   CRITICAL: tl.arange(0, BLOCK_SIZE) ✓  but  tl.arange(0, n) where n is runtime ✗
+   Solution: Use fixed BLOCK_SIZE with masking for boundaries
+
+3. MEMORY SAFETY
+   GPU memory is accessed via pointers. Out-of-bounds access causes crashes.
+   
+   Always use MASKING:
+   ```python
+   offsets = pid * BLOCK_SIZE + tl.arange(0, BLOCK_SIZE)
+   mask = offsets < N  # Check boundaries
+   data = tl.load(ptr + offsets, mask=mask, other=0.0)  # Safe
+   ```
+   
+   The mask ensures we only touch valid memory locations.
+
+4. TRITON LANGUAGE SCOPE
+   Inside @triton.jit functions, you're in "Triton-land":
+   - Use tl.* operations ONLY
+   - No torch.* functions
+   - No Python control flow on tensor data (use tl.where instead)
+   
+   Outside (in wrapper), you're in "Python-land":
+   - Use torch.* freely
+   - Allocate tensors, compute grid sizes
+   - Launch kernels
+
+5. MATRIX OPERATIONS
+   tl.dot(A, B) performs matrix multiplication:
+   - Requires A.shape = (M, K) and B.shape = (K, N)
+   - Results in shape (M, N)
+   - Use tl.trans(B) if B is (N, K) to get (K, N)
+   
+   Common pattern for GEMM:
+   ```python
+   # Load tiles
+   a = tl.load(...)  # Shape: (BLOCK_M, BLOCK_K)
+   b = tl.load(...)  # Shape: (BLOCK_N, BLOCK_K)
+   # Transpose b to match dimensions
+   b_t = tl.trans(b)  # Now: (BLOCK_K, BLOCK_N)
+   # Multiply
+   c = tl.dot(a, b_t)  # Result: (BLOCK_M, BLOCK_N)
+   ```
+
+=== YOUR TASK ===
+
 For each PyTorch operation, you should:
 1. Analyze the operation and memory access patterns
 2. Think step-by-step about how to parallelize it
@@ -205,7 +276,7 @@ class TraceOrchestrator:
         self,
         pytorch_code: str,
         session: aiohttp.ClientSession,
-    ) -> Optional[str]:
+    ) -> Optional[dict]:
         """
         Generate a Triton kernel completion from gpt-oss-120b.
         
@@ -214,7 +285,7 @@ class TraceOrchestrator:
             session: aiohttp session for requests
             
         Returns:
-            The model's response or None if failed
+            Dict with 'content' and 'reasoning' fields, or None if failed
         """
         messages = [
             {"role": "system", "content": SYSTEM_PROMPT},
@@ -226,6 +297,9 @@ class TraceOrchestrator:
             "messages": messages,
             "max_tokens": MAX_TOKENS,
             "temperature": TEMPERATURE,
+            "extra_body": {
+                "reasoning_effort": "high"
+            }
         }
         
         try:
@@ -236,7 +310,12 @@ class TraceOrchestrator:
             ) as response:
                 if response.status == 200:
                     data = await response.json()
-                    return data["choices"][0]["message"]["content"]
+                    message = data["choices"][0]["message"]
+                    return {
+                        "content": message.get("content"),
+                        "reasoning": message.get("reasoning_content"),  # vLLM-specific field
+                        "usage": data.get("usage")
+                    }
                 else:
                     error = await response.text()
                     print(f"API error: {response.status} - {error}")
@@ -372,9 +451,12 @@ class TraceOrchestrator:
         
         # Step 1: Generate completion
         print(f"Generating completion for {sample_key}...")
-        completion = await self.generate_completion(pytorch_code, session)
-        if not completion:
+        response = await self.generate_completion(pytorch_code, session)
+        if not response:
             return None
+        
+        completion = response["content"]
+        model_reasoning = response["reasoning"]  # Internal chain-of-thought from gpt-oss
         
         # Step 2: Extract Triton code and thinking
         triton_code = self.extract_triton_code(completion)
@@ -385,7 +467,8 @@ class TraceOrchestrator:
             return {
                 "sample_key": sample_key,
                 "error": "Triton extraction failed",
-                "full_completion": completion
+                "full_completion": completion,
+                "model_reasoning": model_reasoning
             }
         
         # Step 3: Validate on Modal
@@ -401,7 +484,8 @@ class TraceOrchestrator:
             "name": sample.get("name"),
             "problem_id": sample.get("problem_id"),
             "pytorch_code": pytorch_code,
-            "thinking": thinking,
+            "thinking": thinking,  # Extracted from <think> tags in completion
+            "model_reasoning": model_reasoning,  # Internal CoT from gpt-oss (reasoning_content)
             "triton_code": triton_code,
             "full_completion": completion,
             "result": {
