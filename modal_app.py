@@ -266,7 +266,7 @@ def benchmark_triton_kernel(
 )
 def benchmark_batch(kernels: list[dict]) -> list[dict]:
     """
-    Benchmark multiple Triton kernels in batch.
+    Benchmark multiple Triton kernels in batch (SEQUENTIAL - same container).
 
     Args:
         kernels: List of kernel specifications, each containing:
@@ -297,6 +297,121 @@ def benchmark_batch(kernels: list[dict]) -> list[dict]:
         results.append(result)
 
     return results
+
+
+# =============================================================================
+# PARALLEL EXECUTION - Multiple H100 Containers
+# =============================================================================
+# This is the recommended approach for high-throughput benchmarking.
+# Uses Modal's .map() to distribute kernels across N containers.
+# Total time = max(kernel_times) instead of sum(kernel_times)
+# =============================================================================
+
+# Default number of parallel containers
+DEFAULT_PARALLEL_CONTAINERS = 4
+
+
+@app.function(
+    gpu="H100",
+    image=image,
+    volumes={"/results": volume},
+    timeout=3600,
+    concurrency_limit=8,  # Allow up to 8 parallel containers
+)
+def benchmark_single(kernel_spec: dict) -> dict:
+    """
+    Benchmark a single Triton kernel (for parallel execution).
+    
+    This function is designed to be called via .map() for parallel execution.
+    Each call runs on a separate H100 container.
+    
+    Args:
+        kernel_spec: Kernel specification containing:
+            - kernel_code: Triton kernel source code
+            - reference_torch_code: PyTorch reference implementation
+            - input_shapes: Input tensor specifications
+            - kernel_name (optional): Name for the kernel
+            - n_correctness (optional): Number of correctness checks
+            - n_trials (optional): Number of timing trials
+            - rtol (optional): Relative tolerance for correctness
+            - atol (optional): Absolute tolerance for correctness
+    
+    Returns:
+        Benchmark result dictionary
+    """
+    return benchmark_triton_kernel.local(
+        kernel_code=kernel_spec["kernel_code"],
+        reference_torch_code=kernel_spec["reference_torch_code"],
+        input_shapes=kernel_spec["input_shapes"],
+        n_correctness=kernel_spec.get("n_correctness", 10),
+        n_trials=kernel_spec.get("n_trials", 100),
+        kernel_name=kernel_spec.get("kernel_name"),
+        rtol=kernel_spec.get("rtol", 1e-5),
+        atol=kernel_spec.get("atol", 1e-5),
+    )
+
+
+def benchmark_parallel(kernels: list[dict], n_containers: int = DEFAULT_PARALLEL_CONTAINERS) -> list[dict]:
+    """
+    Benchmark multiple Triton kernels in PARALLEL across multiple H100 containers.
+    
+    This is the recommended approach for high-throughput benchmarking.
+    Uses Modal's .map() to distribute kernels across N containers.
+    
+    Benefits:
+        - 4x+ throughput for large batches (with n_containers=4)
+        - Total time = max(kernel_times) instead of sum(kernel_times)
+        - Essential for fast RL iteration
+    
+    Args:
+        kernels: List of kernel specifications (see benchmark_single for format)
+        n_containers: Maximum number of parallel containers (default: 4)
+    
+    Returns:
+        List of benchmark results in the same order as input kernels
+    
+    Example:
+        >>> kernels = [
+        ...     {"kernel_code": code1, "reference_torch_code": ref1, ...},
+        ...     {"kernel_code": code2, "reference_torch_code": ref2, ...},
+        ... ]
+        >>> results = benchmark_parallel(kernels, n_containers=4)
+    """
+    print(f"\n{'='*60}")
+    print(f"PARALLEL BENCHMARK: {len(kernels)} kernels on up to {n_containers} H100 containers")
+    print(f"{'='*60}\n")
+    
+    # Use Modal's .map() for parallel execution
+    results = list(benchmark_single.map(kernels))
+    
+    # Print summary
+    correct = sum(1 for r in results if r.get("correctness", False))
+    fast_1 = sum(1 for r in results if r.get("fast_1", False))
+    fast_2 = sum(1 for r in results if r.get("fast_2", False))
+    
+    print(f"\n{'='*60}")
+    print(f"PARALLEL BENCHMARK COMPLETE")
+    print(f"  Total kernels: {len(results)}")
+    print(f"  Correct: {correct}/{len(results)} ({100*correct/len(results):.1f}%)")
+    print(f"  fast_1 (correct & faster): {fast_1}/{len(results)}")
+    print(f"  fast_2 (correct & 2x faster): {fast_2}/{len(results)}")
+    print(f"{'='*60}\n")
+    
+    return results
+
+
+@app.function(
+    image=image,
+    volumes={"/results": volume},
+)
+def benchmark_parallel_remote(kernels: list[dict], n_containers: int = DEFAULT_PARALLEL_CONTAINERS) -> list[dict]:
+    """
+    Remote-callable version of benchmark_parallel.
+    
+    Use this to trigger parallel benchmarking from outside Modal:
+        results = benchmark_parallel_remote.remote(kernels, n_containers=4)
+    """
+    return benchmark_parallel(kernels, n_containers)
 
 
 @app.function(

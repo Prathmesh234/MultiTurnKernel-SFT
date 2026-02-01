@@ -3,15 +3,16 @@ name = "kernelbench-triton"
 version = "0.1.0"
 description = "Triton kernel benchmarking and trace generation for RL training"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.10,<3.13"
 dependencies = [
     "datasets>=2.14.0",
     "huggingface-hub>=0.17.0",
     "openai>=1.0.0",
-    "modal>=0.56.0",
-    "torch>=2.1.0",
+    "modal>=0.63.0",
     "tqdm>=4.65.0",
     "aiohttp>=3.8.0",
+    "numpy>=1.24.0",
+    "pandas>=2.0.0",
 ]
 
 [project.optional-dependencies]
@@ -20,8 +21,10 @@ dev = [
     "ruff>=0.1.0",
 ]
 gpu = [
-    "triton>=2.1.0",
+    "triton>=3.0.0",
 ]
+# Note: torch and vllm are installed separately via run_gpt_oss.sh script
+# because they require specific CUDA index URLs
 
 [tool.uv]
 dev-dependencies = [
