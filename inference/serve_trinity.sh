@@ -1,52 +1,52 @@
 #!/bin/bash
 # =============================================================================
-# Serve the merged Trinity-Mini model with vLLM
+# Serve Trinity-Mini with SGLang + LoRA Support
 #
-# Usage:
-#   1. Install deps:              uv sync
-#   2. Download the model:        uv run python download_model_from_modal.py
-#   3. Serve it:                  bash serve_trinity.sh
-#
-# Prerequisites:
-#   - 2x NVIDIA GPUs with sufficient VRAM
-#   - uv installed (curl -LsSf https://astral.sh/uv/install.sh | sh)
-#   - Model weights downloaded to ./trinity-mini/
+# SGLang supports MoE + LoRA (which vLLM currently lacks for fusedMoe)
 # =============================================================================
 
 set -e
 
-MODEL_DIR="./trinity-mini"
+# --- Configuration ---
+MODEL_ID="arcee-ai/Trinity-Mini"
+LORA_PATH="./sft-reasoning/checkpoint-40" 
+ADAPTER_NAME="trinity-reasoning"
+PORT=8000
+TP_SIZE=1 # H100 (80GB) can handle Trinity-Mini (26B) with TP=1
 
-# Check that model weights exist
-if [ ! -d "$MODEL_DIR" ]; then
-    echo "Model not found at $MODEL_DIR"
-    echo "Run 'uv run python download_model_from_modal.py' first to download the weights."
+# Check that LoRA weights exist
+if [ ! -d "$LORA_PATH" ]; then
+    echo "LoRA adapter not found at $LORA_PATH"
+    echo "Run 'uv run python inference/download_lora_from_modal.py' first."
     exit 1
 fi
 
-# Check GPU
-if ! command -v nvidia-smi &> /dev/null; then
-    echo "nvidia-smi not found. Make sure NVIDIA drivers are installed."
+# Check that LoRA weights exist
+if [ ! -d "$LORA_PATH" ]; then
+    echo "LoRA adapter not found at $LORA_PATH"
+    echo "Run 'uv run python inference/download_lora_from_modal.py' first."
     exit 1
 fi
-echo "GPUs detected:"
-nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
 
-# Install dependencies via uv
-echo ""
-echo "Installing dependencies..."
-uv sync
+# Install SGLang if not present (or upgrade for MoE LoRA support)
+echo "Ensuring SGLang is installed..."
+pip install "sglang[all]>=0.4.0" --upgrade
 
-# Serve the model with tensor parallelism across 2 GPUs
+# Serve with SGLang
 echo ""
-echo "Starting vLLM server on port 8000..."
-echo "Model: $MODEL_DIR (tensor-parallel=2)"
+echo "Starting SGLang server on port $PORT..."
+echo "Base Model: $MODEL_ID (via HuggingFace)"
+echo "LoRA Adapter: $LORA_PATH as '$ADAPTER_NAME'"
 echo ""
 
-uv run vllm serve "$MODEL_DIR" \
-  --dtype bfloat16 \
-  --tensor-parallel-size 2 \
-  --enable-auto-tool-choice \
-  --reasoning-parser deepseek_r1 \
-  --port 8000 \
-  --tool-call-parser hermes
+# SGLang Launch Command
+python3 -m sglang.launch_server \
+  --model-path "$MODEL_ID" \
+  --lora-paths "$ADAPTER_NAME=$LORA_PATH" \
+  --enable-lora \
+  --tp-size "$TP_SIZE" \
+  --port "$PORT" \
+  --host 0.0.0.0 \
+  --trust-remote-code \
+  --context-length 32768
+
