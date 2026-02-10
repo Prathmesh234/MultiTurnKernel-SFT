@@ -644,3 +644,56 @@ Run with:
 ```bash
 modal run exploration/benchmark_example.py::run_examples
 ```
+
+---
+
+## Known Issues & Workarounds
+
+### Missing Opening `<think>` Tag (Trinity-Mini LoRA Adapter)
+
+**Issue**: The vLLM-compatible LoRA adapter (`trinity-triton-sft-vllm`) does NOT generate the opening `<think>` tag in its responses. It starts with freeform text like "Okay, let's tackle this..." and only includes the closing `</think>` tag.
+
+**Root Cause**: The adapter was fine-tuned on data that had freeform reasoning text before the `<think>` tag, or the tag was stripped during training preprocessing.
+
+**Impact**: 
+- Model generates correct reasoning and code structure
+- Has closing `</think>` tag consistently
+- Missing opening `<think>` tag breaks downstream parsers expecting strict XML-like format
+
+**Workaround (Current)**:
+Prepend the opening tag in post-processing:
+
+```python
+def post_process_response(content: str) -> str:
+    """Hacky fix: Add missing opening <think> tag if not present."""
+    if not content.strip().startswith('<think>'):
+        content = '<think>\n' + content
+    return content
+
+# In your API client
+response = requests.post(url, json=payload)
+content = response.json()['choices'][0]['message']['content']
+content = post_process_response(content)  # Apply fix
+```
+
+**Testing**: `inference/test_format_consistency.py` validates this workaround achieves 100% format compliance.
+
+**Future Fix**: 
+- Retrain adapter with properly formatted examples that include BOTH opening and closing tags
+- Update system prompt during next SFT round to explicitly enforce tag structure
+- Consider using a different chat template that forces tag generation
+
+**Status**: ✅ Acceptable for current use, 🔴 Must fix in next SFT iteration
+
+---
+
+## SGLang Server Setup
+
+The project uses **SGLang** for serving Trinity-Mini with LoRA adapters because:
+- ✅ Full support for LoRA on MoE layers (gate_proj, up_proj, down_proj)
+- ✅ Better performance than vLLM for MoE models 
+- ✅ Native LoRA adapter swapping
+
+Current working configuration located in `inference/serve_trinity_uv.sh`.
+
+See `SGLANG_SETUP.md` and `SETUP_SUCCESS.md` for detailed setup instructions.

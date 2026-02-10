@@ -27,6 +27,37 @@ A benchmarking environment for Triton kernels on Modal H100 GPUs. This is adapte
    modal setup
    ```
 
+## SGLang Inference Serving
+
+This project uses **SGLang** for serving the finetuned Trinity-Mini model with LoRA adapters. SGLang is specifically chosen because it **fully supports LoRA on MoE (Mixture-of-Experts) layers**, including `gate_proj`, `up_proj`, and `down_proj`, which is critical for Trinity-Mini's 26B MoE architecture.
+
+**Why SGLang over vLLM?**
+- ✅ **Full MoE + LoRA support**: Handles LoRA adapters on all MoE expert layers
+- ✅ **No weight corruption**: Safe adapter loading/unloading without model corruption
+- ✅ **Production-ready**: Optimized for MoE architectures with batching support
+
+### Setup SGLang Server
+
+See [`SGLANG_SETUP.md`](./SGLANG_SETUP.md) for detailed setup instructions.
+
+**Quick commands:**
+```bash
+# 1. Login to Modal
+modal token new
+
+# 2. Download LoRA checkpoint (if needed)
+cd /home/ubuntu/Arcee-Mini-Kernel
+source .venv/bin/activate
+uv run python inference/download_lora_from_modal.py
+
+# 3. Start SGLang server with LoRA
+bash inference/serve_trinity_uv.sh
+
+# Or start base model only
+bash inference/serve_trinity_base.sh
+```
+
+
 ## Quick Start
 
 ### Deploy the Application

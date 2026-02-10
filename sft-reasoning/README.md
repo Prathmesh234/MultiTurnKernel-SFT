@@ -285,8 +285,8 @@ modal run trinity_inference.py::client --url "https://<your-modal-url>"
 
 ### Technical Notes
 
-- **Why PEFT instead of vLLM?** vLLM doesn't support LoRA on MoE expert layers (`gate_proj`, `up_proj`, `down_proj`). The `merge_and_unload()` approach corrupts MoE weights. PEFT inference is the only working solution.
-- **GPU**: Uses A100-80GB for the 26B MoE model with 4-bit quantization
+- **Why SGLang instead of vLLM?** SGLang fully supports LoRA adapters on MoE (Mixture-of-Experts) layers including `gate_proj`, `up_proj`, and `down_proj`, which is critical for Trinity-Mini's 26B MoE architecture. vLLM does not support LoRA on MoE expert layers, and using `merge_and_unload()` corrupts MoE weights.
+- **GPU**: Uses H100-80GB for the 26B MoE model with LoRA adapters
 - **Auto-scaling**: `min_containers=0` with 5-minute scaledown window
 
 ## References
