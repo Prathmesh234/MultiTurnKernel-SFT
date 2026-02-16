@@ -1,9 +1,9 @@
 """
-Orchestrator for generating reasoning traces with gpt-oss-120b.
+Orchestrator for generating reasoning traces with GLM-4.5-Air.
 
 This script:
 1. Loads PyTorch code from KernelBook and KernelBench via dataloader
-2. Sends each problem to gpt-oss-120b (running locally via vLLM)
+2. Sends each problem to GLM-4.5-Air (running locally via vLLM)
 3. Extracts the generated Triton kernel code
 4. Validates correctness + measures speedup on Modal H100
 5. Saves verified traces to reasoning_traces.json
@@ -26,7 +26,7 @@ from modal_app import app as modal_app, benchmark_kernelbench
 
 # Configuration
 VLLM_BASE_URL = "http://localhost:8000/v1"
-MODEL_NAME = "openai/gpt-oss-120b"
+MODEL_NAME = "THUDM/GLM-4.5-Air-0414"
 OUTPUT_FILE = "reasoning_traces.json"
 MAX_TOKENS = 16384  # Long enough for reasoning + code
 TEMPERATURE = 0.7
@@ -278,7 +278,7 @@ class TraceOrchestrator:
         session: aiohttp.ClientSession,
     ) -> Optional[dict]:
         """
-        Generate a Triton kernel completion from gpt-oss-120b.
+        Generate a Triton kernel completion from GLM-4.5-Air.
         
         Args:
             pytorch_code: The PyTorch code to convert
@@ -456,7 +456,7 @@ class TraceOrchestrator:
             return None
         
         completion = response["content"]
-        model_reasoning = response["reasoning"]  # Internal chain-of-thought from gpt-oss
+        model_reasoning = response["reasoning"]  # Internal chain-of-thought from GLM-4.5-Air
         
         # Step 2: Extract Triton code and thinking
         triton_code = self.extract_triton_code(completion)
@@ -485,7 +485,7 @@ class TraceOrchestrator:
             "problem_id": sample.get("problem_id"),
             "pytorch_code": pytorch_code,
             "thinking": thinking,  # Extracted from <think> tags in completion
-            "model_reasoning": model_reasoning,  # Internal CoT from gpt-oss (reasoning_content)
+            "model_reasoning": model_reasoning,  # Internal CoT from GLM-4.5-Air (reasoning_content)
             "triton_code": triton_code,
             "full_completion": completion,
             "result": {
