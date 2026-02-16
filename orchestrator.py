@@ -19,6 +19,7 @@ from typing import Optional
 from tqdm import tqdm
 
 from dataloader import KernelDataLoader
+from multi_turn_queue import MultiTurnQueue
 
 # Import Modal app and function for remote execution
 import modal
@@ -28,6 +29,7 @@ from modal_app import app as modal_app, benchmark_kernelbench
 VLLM_BASE_URL = "http://localhost:8000/v1"
 MODEL_NAME = "zai-org/GLM-4.5-Air"
 OUTPUT_FILE = "reasoning_traces.json"
+OUTPUT_FILE_MULTITURN = "reasoning_traces_glm45_multiturn.json"
 MAX_MODEL_LEN = 32768  # Must match --max-model-len on vLLM server
 MAX_COMPLETION_TOKENS = 32768  # Upper bound; dynamically capped per request
 TEMPERATURE = 0.7
@@ -224,6 +226,16 @@ USER_PROMPT_TEMPLATE = """Convert the following PyTorch code to an optimized Tri
 
 Generate a complete Triton implementation that produces the same output as the PyTorch code."""
 
+MULTI_TURN_ADDENDUM = """
+
+=== MULTI-TURN FEEDBACK ===
+
+You may receive feedback on your generated kernel if it fails validation
+or is slower than PyTorch. When you receive feedback, analyze the error
+or performance issue, then generate an improved version. Always respond
+with the same <think>...</think> <triton>...</triton> format.
+"""
+
 
 class TraceOrchestrator:
     """
@@ -235,7 +247,7 @@ class TraceOrchestrator:
         vllm_base_url: str = VLLM_BASE_URL,
         output_file: str = OUTPUT_FILE,
         kernelbook_samples: int = 1500,
-        kernelbench_samples: int = 1000,
+        kernelbench_samples: int = 500,
     ):
         self.vllm_base_url = vllm_base_url
         self.output_file = Path(output_file)
@@ -273,24 +285,19 @@ class TraceOrchestrator:
     
     async def generate_completion(
         self,
-        pytorch_code: str,
+        messages: list[dict],
         session: aiohttp.ClientSession,
     ) -> Optional[dict]:
         """
         Generate a Triton kernel completion from GLM-4.5-Air.
-        
+
         Args:
-            pytorch_code: The PyTorch code to convert
+            messages: The conversation messages to send
             session: aiohttp session for requests
-            
+
         Returns:
             Dict with 'content' and 'reasoning' fields, or None if failed
         """
-        messages = [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": USER_PROMPT_TEMPLATE.format(pytorch_code=pytorch_code)},
-        ]
-        
         # GLM-4.5-Air has thinking/reasoning enabled by default.
         # No reasoning_effort needed — it's a binary toggle (on/off).
         # To disable thinking, pass: extra_body={"chat_template_kwargs": {"enable_thinking": False}}
@@ -458,10 +465,14 @@ class TraceOrchestrator:
             return None
         
         pytorch_code = sample["pytorch_code"]
-        
+
         # Step 1: Generate completion
         print(f"Generating completion for {sample_key}...")
-        response = await self.generate_completion(pytorch_code, session)
+        messages = [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": USER_PROMPT_TEMPLATE.format(pytorch_code=pytorch_code)},
+        ]
+        response = await self.generate_completion(messages, session)
         if not response:
             return None
         
@@ -516,6 +527,131 @@ class TraceOrchestrator:
         
         return trace
     
+    def _save_multiturn_traces(self, traces: list[dict]):
+        """Save completed multi-turn traces to JSON."""
+        with open(OUTPUT_FILE_MULTITURN, "w") as f:
+            json.dump(traces, f, indent=2, default=str)
+
+    async def run_multi_turn(self, batch_size: int = 5, max_turns: int = 4):
+        """
+        Run multi-turn iterative refinement.
+
+        Failed or slow kernels get feedback and retry up to max_turns times.
+        """
+        samples = self.dataloader.load_all()
+        queue = MultiTurnQueue(max_turns=max_turns)
+
+        # Build initial items and add to queue
+        for sample in samples:
+            sample_key = self._get_sample_key(sample)
+            if sample_key in self.processed_keys:
+                continue
+            item = {
+                "sample_key": sample_key,
+                "sample": sample,
+                "pytorch_code": sample["pytorch_code"],
+                "messages": [
+                    {"role": "system", "content": SYSTEM_PROMPT + MULTI_TURN_ADDENDUM},
+                    {"role": "user", "content": USER_PROMPT_TEMPLATE.format(
+                        pytorch_code=sample["pytorch_code"]
+                    )},
+                ],
+                "turn_num": 1,
+                "turns_history": [],
+            }
+            queue.add(item)
+
+        print(f"Multi-turn queue initialized: {len(queue)} items, max_turns={max_turns}")
+
+        with modal_app.run():
+            async with aiohttp.ClientSession() as session:
+                while len(queue) > 0:
+                    # Pop a batch
+                    batch = []
+                    for _ in range(min(batch_size, len(queue))):
+                        batch.append(queue.pop())
+
+                    # Generate completions concurrently
+                    gen_tasks = [
+                        self.generate_completion(item["messages"], session)
+                        for item in batch
+                    ]
+                    responses = await asyncio.gather(*gen_tasks)
+
+                    # Process each: extract, validate, route
+                    for item, response in zip(batch, responses):
+                        if not response or not response.get("content"):
+                            item["turns_history"].append({
+                                "turn": item["turn_num"],
+                                "thinking": None,
+                                "model_reasoning": None,
+                                "triton_code": None,
+                                "full_completion": None,
+                                "result": {"correctness": False, "error": "Generation failed"},
+                                "feedback_given": None,
+                            })
+                            stop, reason = queue.should_stop(item["turn_num"], {"error": "Generation failed"})
+                            if stop:
+                                queue.finalize(item, reason)
+                            else:
+                                feedback = queue.build_feedback({"error": "Generation failed"})
+                                item["turns_history"][-1]["feedback_given"] = feedback
+                                queue.requeue_with_feedback(item, feedback, "")
+                            continue
+
+                        completion = response["content"]
+                        reasoning = response.get("reasoning")
+
+                        triton_code = self.extract_triton_code(completion)
+                        thinking = self.extract_thinking(completion)
+
+                        if not triton_code:
+                            result = {"correctness": False, "error": "Triton code extraction failed"}
+                        else:
+                            print(f"Validating {item['sample_key']} turn {item['turn_num']} on Modal H100...")
+                            result = await self.validate_on_modal(
+                                triton_code, item["pytorch_code"], item["sample"]
+                            )
+
+                        turn_result = {
+                            "turn": item["turn_num"],
+                            "thinking": thinking,
+                            "model_reasoning": reasoning,
+                            "triton_code": triton_code,
+                            "full_completion": completion,
+                            "result": result,
+                            "feedback_given": None,
+                        }
+                        item["turns_history"].append(turn_result)
+
+                        stop, reason = queue.should_stop(item["turn_num"], result)
+                        if stop:
+                            queue.finalize(item, reason)
+                            correctness = result.get("correctness", False)
+                            speedup = result.get("speedup", 0.0)
+                            print(f"  {item['sample_key']} DONE ({reason}): correct={correctness}, speedup={speedup:.2f}x, turns={item['turn_num']}")
+                        else:
+                            feedback = queue.build_feedback(result)
+                            turn_result["feedback_given"] = feedback
+                            queue.requeue_with_feedback(item, feedback, completion)
+                            print(f"  {item['sample_key']} turn {item['turn_num'] - 1} -> retrying (queue size: {len(queue)})")
+
+                    self._save_multiturn_traces(queue.completed_traces)
+                    print(f"Saved {len(queue.completed_traces)} traces | Queue remaining: {len(queue)}")
+
+        # Print summary
+        traces = queue.completed_traces
+        success_count = sum(1 for t in traces if t.get("stop_reason") == "success_fast")
+        print("\n" + "=" * 60)
+        print("MULTI-TURN TRACE GENERATION COMPLETE")
+        print("=" * 60)
+        print(f"Total traces: {len(traces)}")
+        print(f"Successful (correct + fast): {success_count}")
+        print(f"Max turns reached: {len(traces) - success_count}")
+        print(f"Output file: {OUTPUT_FILE_MULTITURN}")
+
+        return traces
+
     async def run(
         self,
         batch_size: int = 10,
@@ -598,20 +734,28 @@ def main():
     parser.add_argument("--kernelbench-samples", type=int, default=1000)
     parser.add_argument("--batch-size", type=int, default=10)
     parser.add_argument("--save-interval", type=int, default=10)
-    
+    parser.add_argument("--multi-turn", action="store_true", help="Enable multi-turn iterative refinement")
+    parser.add_argument("--max-turns", type=int, default=4, help="Max turns per sample in multi-turn mode")
+
     args = parser.parse_args()
-    
+
     orchestrator = TraceOrchestrator(
         vllm_base_url=args.vllm_url,
         output_file=args.output,
         kernelbook_samples=args.kernelbook_samples,
         kernelbench_samples=args.kernelbench_samples,
     )
-    
-    asyncio.run(orchestrator.run(
-        batch_size=args.batch_size,
-        save_interval=args.save_interval,
-    ))
+
+    if args.multi_turn:
+        asyncio.run(orchestrator.run_multi_turn(
+            batch_size=args.batch_size,
+            max_turns=args.max_turns,
+        ))
+    else:
+        asyncio.run(orchestrator.run(
+            batch_size=args.batch_size,
+            save_interval=args.save_interval,
+        ))
 
 
 if __name__ == "__main__":

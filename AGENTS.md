@@ -697,3 +697,60 @@ The project uses **SGLang** for serving Trinity-Mini with LoRA adapters because:
 Current working configuration located in `inference/serve_trinity_uv.sh`.
 
 See `SGLANG_SETUP.md` and `SETUP_SUCCESS.md` for detailed setup instructions.
+
+---
+
+## Multi-Turn Iterative Refinement
+
+### Overview
+
+Multi-turn mode lets the model self-correct failed or slow kernels over multiple attempts (up to 4 turns by default). After each turn, the kernel is validated on Modal H100. If it fails or is slower than PyTorch, feedback is sent back and the model retries.
+
+### How It Works
+
+```
+Turn 1: Generate kernel → Validate → Failed? → Send feedback
+Turn 2: Model sees feedback → Regenerate → Validate → Slow? → Send feedback
+Turn 3: Model optimizes → Validate → Correct + fast? → Done!
+```
+
+**Stop conditions:**
+- `success_fast`: kernel is correct AND speedup >= 1.0x
+- `max_turns_reached`: hit the turn limit (default 4)
+
+### Files
+
+| File | Role |
+|------|------|
+| `multi_turn_queue.py` | Passive proxy class - manages deque, turn counting, feedback strings, trace building |
+| `orchestrator.py` | Drives the loop - API calls, extraction, Modal validation (owns all I/O) |
+
+### Usage
+
+```bash
+# Start vLLM server first, then:
+uv run --no-sync python orchestrator.py \
+    --multi-turn \
+    --max-turns 4 \
+    --batch-size 5
+
+# Single-turn mode (default, unchanged):
+uv run --no-sync python orchestrator.py --batch-size 10
+```
+
+### CLI Args
+
+| Arg | Default | Description |
+|-----|---------|-------------|
+| `--multi-turn` | off | Enable multi-turn mode |
+| `--max-turns` | 4 | Max retry attempts per sample |
+| `--batch-size` | 10 (single) / 5 (multi) | Concurrent requests per batch |
+
+### Output
+
+Multi-turn traces are saved to `reasoning_traces_glm45_multiturn.json`. Each trace contains:
+- `num_turns`: how many attempts it took
+- `stop_reason`: why it stopped (`success_fast` or `max_turns_reached`)
+- `turns`: full history of all attempts with results and feedback
+- `full_messages`: complete conversation for SFT training
+- `final_triton_code` / `final_result`: last attempt's code and validation result
