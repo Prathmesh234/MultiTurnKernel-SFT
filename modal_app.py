@@ -56,6 +56,8 @@ image = (
         "torch==2.5.0",  # Exact version KernelBook was generated with
         "triton==3.1.0",  # Match triton version with PyTorch 2.5
     )
+    # Mount utilities module so it's importable inside remote functions
+    .add_local_file("utilities.py", "/root/utilities.py")
 )
 
 

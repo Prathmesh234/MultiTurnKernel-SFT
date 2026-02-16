@@ -26,16 +26,13 @@ from modal_app import app as modal_app, benchmark_kernelbench
 
 # Configuration
 VLLM_BASE_URL = "http://localhost:8000/v1"
-MODEL_NAME = "THUDM/GLM-4.5-Air-0414"
+MODEL_NAME = "zai-org/GLM-4.5-Air"
 OUTPUT_FILE = "reasoning_traces.json"
-MAX_TOKENS = 16384  # Long enough for reasoning + code
+MAX_MODEL_LEN = 32768  # Must match --max-model-len on vLLM server
+MAX_COMPLETION_TOKENS = 32768  # Upper bound; dynamically capped per request
 TEMPERATURE = 0.7
-REASONING_LEVEL = "high"  # low, medium, high
 
-
-SYSTEM_PROMPT = f"""Reasoning: {REASONING_LEVEL}
-
-You are an expert GPU kernel engineer. Your task is to convert PyTorch code into optimized Triton kernels.
+SYSTEM_PROMPT = """You are an expert GPU kernel engineer. Your task is to convert PyTorch code into optimized Triton kernels.
 
 === TRITON PRIMER: CORE CONCEPTS ===
 
@@ -145,6 +142,8 @@ def triton_kernel_wrapper(input_tensors):
 1. The wrapper function MUST be named `triton_kernel_wrapper`
 2. The wrapper takes the SAME inputs as Model.forward() - just the input tensors, NOT model weights
 3. If the model has weights (nn.Linear, nn.Conv2d, etc.), the wrapper should create random weights or accept them as additional parameters
+4. **IMPORTANT**: If get_init_inputs() returns parameters (e.g., {'quantiles': 4, 'hidden_size': 128}), the wrapper MUST accept these as keyword arguments with defaults matching those values
+5. **Triton API Limitations**: tl.tanh, tl.pow, tl.unsqueeze do NOT exist - use tl.exp for tanh, ** operator for pow, reshape for unsqueeze
 
 === TRITON KERNEL RULES - MUST FOLLOW ===
 
@@ -167,7 +166,7 @@ INSIDE @triton.jit KERNELS - Use ONLY triton.language (tl) operations:
 
 NEVER use inside @triton.jit:
 - torch.* functions (torch.sum, torch.mean, torch.relu, etc.)
-- .pow(), .sqrt(), .exp() methods on tensors - use tl.pow(), tl.sqrt(), tl.exp() instead
+- .pow(), .sqrt(), .exp() methods on tensors - use ** operator for pow, tl.sqrt(), tl.exp() for others
 - Python classes or objects
 - nn.* modules
 
@@ -209,7 +208,7 @@ def triton_kernel_wrapper(x):
 COMMON OPERATIONS:
 - ReLU: tl.maximum(x, 0.0)
 - Sigmoid: 1.0 / (1.0 + tl.exp(-x))
-- Tanh: use tl.tanh(x) if available, else (tl.exp(x) - tl.exp(-x)) / (tl.exp(x) + tl.exp(-x))
+- Tanh: (tl.exp(2*x) - 1) / (tl.exp(2*x) + 1)
 - Softmax: exp_x = tl.exp(x - tl.max(x)); exp_x / tl.sum(exp_x)
 - Mean: tl.sum(x) / n_elements
 
@@ -292,14 +291,22 @@ class TraceOrchestrator:
             {"role": "user", "content": USER_PROMPT_TEMPLATE.format(pytorch_code=pytorch_code)},
         ]
         
+        # GLM-4.5-Air has thinking/reasoning enabled by default.
+        # No reasoning_effort needed — it's a binary toggle (on/off).
+        # To disable thinking, pass: extra_body={"chat_template_kwargs": {"enable_thinking": False}}
+        
+        # Dynamically compute max_tokens to fit within the context window.
+        # Estimate input tokens (~3.5 chars/token) and leave room for them.
+        total_input_chars = sum(len(m["content"]) for m in messages)
+        estimated_input_tokens = int(total_input_chars / 3.5) + 50  # safety margin
+        max_tokens = min(MAX_COMPLETION_TOKENS, MAX_MODEL_LEN - estimated_input_tokens)
+        max_tokens = max(max_tokens, 1024)  # floor so we always generate something
+        
         payload = {
             "model": MODEL_NAME,
             "messages": messages,
-            "max_tokens": MAX_TOKENS,
+            "max_tokens": max_tokens,
             "temperature": TEMPERATURE,
-            "extra_body": {
-                "reasoning_effort": "high"
-            }
         }
         
         try:
@@ -385,7 +392,7 @@ class TraceOrchestrator:
         
         return None
     
-    def validate_on_modal(
+    async def validate_on_modal(
         self,
         triton_code: str,
         pytorch_code: str,
@@ -408,7 +415,10 @@ class TraceOrchestrator:
             # KernelBook samples have an entry_point field specifying the class name
             entry_point = sample.get("entry_point", "Model")
 
-            result = benchmark_kernelbench.remote(
+            # Run blocking Modal .remote() call in a thread so it doesn't
+            # block the asyncio event loop — enables parallel validations
+            result = await asyncio.to_thread(
+                benchmark_kernelbench.remote,
                 triton_code=triton_code,
                 pytorch_code=pytorch_code,
                 n_correctness=5,
@@ -455,8 +465,13 @@ class TraceOrchestrator:
         if not response:
             return None
         
-        completion = response["content"]
-        model_reasoning = response["reasoning"]  # Internal chain-of-thought from GLM-4.5-Air
+        completion = response.get("content")
+        model_reasoning = response.get("reasoning")  # Internal chain-of-thought from GLM-4.5-Air
+        
+        # Validate content is not None
+        if not completion:
+            print(f"API returned empty content for {sample_key}")
+            return None
         
         # Step 2: Extract Triton code and thinking
         triton_code = self.extract_triton_code(completion)
@@ -473,7 +488,7 @@ class TraceOrchestrator:
         
         # Step 3: Validate on Modal
         print(f"Validating {sample_key} on Modal H100...")
-        result = self.validate_on_modal(triton_code, pytorch_code, sample)
+        result = await self.validate_on_modal(triton_code, pytorch_code, sample)
         print(f"Validation complete for {sample_key}: Correct={result.get('correctness')}, Speedup={result.get('speedup')}x")
         
         # Create trace

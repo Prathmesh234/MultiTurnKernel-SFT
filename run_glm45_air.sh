@@ -23,15 +23,14 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # vLLM Configuration
-MODEL_NAME="THUDM/GLM-4.5-Air-0414"
+MODEL_NAME="zai-org/GLM-4.5-Air"
 TENSOR_PARALLEL_SIZE=4
 PORT=8000
 HOST="0.0.0.0"
-MAX_TOKENS=16384
+MAX_TOKENS=32768
 MAX_MODEL_LEN=$MAX_TOKENS
 GPU_MEMORY_UTILIZATION=0.9
 TEMPERATURE=0.7
-REASONING_LEVEL=high
 OUTPUT_FILE="reasoning_traces_glm45.json"
 
 # GPU configuration (4 GPUs for BF16 with 106B MoE model)
@@ -110,6 +109,13 @@ echo "Checking GPU availability..."
 nvidia-smi --query-gpu=name,memory.total,memory.free --format=csv
 echo ""
 
+# Deploy Modal app (ensures utilities.py and latest code are mounted)
+echo ""
+echo "Deploying Modal app..."
+uv run --no-sync modal deploy modal_app.py
+echo "Modal app deployed successfully."
+echo ""
+
 # Start vLLM server with tensor parallelism
 # GLM-4.5-Air uses:
 #   --reasoning-parser glm45       : extracts reasoning_content from <think> tags
@@ -126,4 +132,6 @@ uv run --no-sync vllm serve $MODEL_NAME \
     --trust-remote-code \
     --enable-prefix-caching \
     --dtype auto \
-    --reasoning-parser glm45
+    --reasoning-parser glm45 \
+    --tool-call-parser glm45 \
+    --enable-auto-tool-choice
