@@ -61,31 +61,248 @@ image = (
 )
 
 
-def _check_cuda_health():
-    """Check if CUDA context is still healthy by running a small operation."""
-    import torch
-    try:
-        t = torch.zeros(1, device='cuda')
-        t = t + 1
-        del t
-        torch.cuda.synchronize()
-        return True
-    except Exception:
-        return False
+def _kernelbench_worker(
+    triton_code: str,
+    pytorch_code: str,
+    n_correctness: int,
+    n_trials: int,
+    kernel_name: str,
+    entry_point: str,
+    rtol: float,
+    atol: float,
+    result_queue,
+):
+    """
+    Module-level worker that runs inside a spawned subprocess.
 
+    Because this is a fresh process it gets its own CUDA context.  A CUDA
+    illegal memory access (SIGABRT/SIGSEGV) will kill only this child; the
+    parent Modal container survives and can handle the next .remote() call
+    without any GPU-context corruption.
 
-def _attempt_cuda_recovery():
-    """Attempt to recover CUDA state after an error. Returns True if successful."""
+    Result is placed on result_queue; volume I/O is handled by the parent.
+    """
+    # All imports happen here because 'spawn' starts a clean interpreter —
+    # nothing from the parent process is inherited.
+    import sys
+    sys.path.insert(0, "/root")  # Modal mounts utilities.py at /root
+
     import torch
+    import time
+    import traceback
+    import tempfile
+    import importlib.util
+    import os
+    import inspect
+    from datetime import datetime as _dt
+
+    # Default result — overwritten on success, returned as-is on crash/error
+    result = {
+        "kernel_name": kernel_name or "unnamed_kernel",
+        "timestamp": _dt.now().isoformat(),
+        "correctness": False,
+        "speedup": 0.0,
+        "reference_time_ms": None,
+        "kernel_time_ms": None,
+        "fast_0": False,
+        "fast_1": False,
+        "fast_2": False,
+        "error": None,
+    }
+
     try:
-        torch.cuda.empty_cache()
-    except Exception:
-        pass
-    try:
-        torch.cuda.synchronize()
-    except Exception:
-        pass
-    return _check_cuda_health()
+        # Write code strings to temp files so importlib can load them as modules.
+        # Triton needs real files on disk (not exec'd strings) to compile kernels.
+        with tempfile.NamedTemporaryFile(mode='w', suffix='_pytorch.py', delete=False) as f:
+            f.write(pytorch_code)
+            pytorch_file = f.name
+
+        with tempfile.NamedTemporaryFile(mode='w', suffix='_triton.py', delete=False) as f:
+            f.write(triton_code)
+            triton_file = f.name
+
+        try:
+            # --- Load the PyTorch reference module ---
+            spec = importlib.util.spec_from_file_location("pytorch_module", pytorch_file)
+            pytorch_module = importlib.util.module_from_spec(spec)
+            sys.modules["pytorch_module"] = pytorch_module
+            spec.loader.exec_module(pytorch_module)
+
+            # Find the nn.Module class: try entry_point first, then "Model",
+            # then scan for any nn.Module subclass as a last resort.
+            if hasattr(pytorch_module, entry_point):
+                ModelClass = getattr(pytorch_module, entry_point)
+            elif hasattr(pytorch_module, "Model"):
+                ModelClass = pytorch_module.Model
+            else:
+                import torch.nn as nn
+                ModelClass = None
+                for name, obj in vars(pytorch_module).items():
+                    if isinstance(obj, type) and issubclass(obj, nn.Module) and obj is not nn.Module:
+                        ModelClass = obj
+                        print(f"Found nn.Module class: {name}")
+                        break
+                if ModelClass is None:
+                    raise ValueError(f"PyTorch code must define '{entry_point}' class or an nn.Module subclass")
+
+            # Smoke-test get_inputs() to catch shape/dtype problems early
+            from utilities import extract_inputs
+            test_inputs = extract_inputs(pytorch_code)
+            print(f"Extracted {len(test_inputs)} inputs: {[tuple(t.shape) for t in test_inputs if hasattr(t, 'shape')]}")
+
+            get_inputs = pytorch_module.get_inputs
+            get_init_inputs = getattr(pytorch_module, "get_init_inputs", lambda: [])
+
+            # --- Load the Triton kernel module ---
+            spec = importlib.util.spec_from_file_location("triton_module", triton_file)
+            triton_module = importlib.util.module_from_spec(spec)
+            sys.modules["triton_module"] = triton_module
+            spec.loader.exec_module(triton_module)  # JIT compilation happens here
+
+            if not hasattr(triton_module, "triton_kernel_wrapper"):
+                raise ValueError("Triton code must define 'triton_kernel_wrapper' function")
+            triton_kernel_wrapper = triton_module.triton_kernel_wrapper
+
+            # Inspect the wrapper signature so we know how many args to pass
+            sig = inspect.signature(triton_kernel_wrapper)
+            wrapper_params = list(sig.parameters.keys())
+            print(f"triton_kernel_wrapper expects: {wrapper_params}")
+
+            # --- Instantiate the reference model ---
+            # get_init_inputs() may return [], [args...], or ([args], {kwargs})
+            init_inputs = get_init_inputs()
+            if isinstance(init_inputs, (list, tuple)) and len(init_inputs) == 2:
+                if isinstance(init_inputs[0], (list, tuple)) and isinstance(init_inputs[1], dict):
+                    # ([positional], {keyword}) format
+                    model = ModelClass(*init_inputs[0], **init_inputs[1]).cuda()
+                else:
+                    model = ModelClass(*init_inputs).cuda()
+            elif isinstance(init_inputs, (list, tuple)):
+                model = ModelClass(*init_inputs).cuda()
+            else:
+                model = ModelClass().cuda()
+            model.eval()
+
+            def _call_wrapper(cuda_inputs):
+                """Call triton_kernel_wrapper with the right number of args.
+
+                Kernels vary in what they expect:
+                  - just the input tensor(s) matching get_inputs()
+                  - input tensor(s) + model weight/bias parameters
+                We match by parameter count.
+                """
+                if len(wrapper_params) == 1:
+                    return triton_kernel_wrapper(cuda_inputs[0])
+                elif len(wrapper_params) == len(cuda_inputs):
+                    return triton_kernel_wrapper(*cuda_inputs)
+                else:
+                    # Kernel wants more args than get_inputs() provides —
+                    # append model parameters (weights then biases) to fill the gap.
+                    kernel_args = list(cuda_inputs)
+                    for module in model.modules():
+                        if hasattr(module, 'weight') and module.weight is not None:
+                            kernel_args.append(module.weight.data)
+                        if hasattr(module, 'bias') and module.bias is not None:
+                            kernel_args.append(module.bias.data)
+                    return triton_kernel_wrapper(*kernel_args[:len(wrapper_params)])
+
+            # --- Correctness phase ---
+            # Run both ref and kernel on fresh random inputs each iteration.
+            print(f"Running {n_correctness} correctness checks...")
+            correctness = True
+            for i in range(n_correctness):
+                inputs = get_inputs()
+                if not isinstance(inputs, (list, tuple)):
+                    inputs = [inputs]
+                cuda_inputs = [x.cuda() if hasattr(x, 'cuda') else x for x in inputs]
+
+                with torch.no_grad():
+                    ref_output = model(*cuda_inputs)
+
+                try:
+                    kernel_output = _call_wrapper(cuda_inputs)
+                except Exception as first_err:
+                    # Signature inference failed — try the explicit weight/bias fallback
+                    try:
+                        kernel_args = list(cuda_inputs)
+                        for module in model.modules():
+                            if hasattr(module, 'weight') and module.weight is not None:
+                                kernel_args.append(module.weight.data)
+                            if hasattr(module, 'bias') and module.bias is not None:
+                                kernel_args.append(module.bias.data)
+                        kernel_output = triton_kernel_wrapper(*kernel_args[:len(wrapper_params)])
+                    except Exception:
+                        raise first_err  # both attempts failed; surface the original error
+
+                if not torch.allclose(ref_output, kernel_output, rtol=rtol, atol=atol):
+                    correctness = False
+                    max_diff = (ref_output - kernel_output).abs().max().item()
+                    print(f"Correctness check {i+1} failed. Max diff: {max_diff}")
+                    print(f"  ref shape: {ref_output.shape}, kernel shape: {kernel_output.shape}")
+                    break  # no need to run remaining checks
+
+            result["correctness"] = correctness
+            result["fast_0"] = correctness  # fast_0 == "at least as correct as ref"
+
+            # --- Performance phase (only if correct) ---
+            if correctness:
+                print(f"Running performance benchmark ({n_trials} trials)...")
+
+                # Use fixed inputs for timing so variance comes from the kernel, not data gen
+                inputs = get_inputs()
+                if not isinstance(inputs, (list, tuple)):
+                    inputs = [inputs]
+                cuda_inputs = [x.cuda() if hasattr(x, 'cuda') else x for x in inputs]
+                kernel_call = lambda: _call_wrapper(cuda_inputs)
+
+                # Warmup: let CUDA JIT settle and caches warm up before we start the clock
+                for _ in range(10):
+                    with torch.no_grad():
+                        model(*cuda_inputs)
+                    kernel_call()
+                torch.cuda.synchronize()
+
+                # Time the PyTorch reference
+                torch.cuda.synchronize()
+                start = time.perf_counter()
+                for _ in range(n_trials):
+                    with torch.no_grad():
+                        model(*cuda_inputs)
+                torch.cuda.synchronize()  # wait for all GPU work to finish before stopping clock
+                reference_time = (time.perf_counter() - start) / n_trials * 1000  # ms per call
+
+                # Time the Triton kernel
+                torch.cuda.synchronize()
+                start = time.perf_counter()
+                for _ in range(n_trials):
+                    kernel_call()
+                torch.cuda.synchronize()
+                kernel_time = (time.perf_counter() - start) / n_trials * 1000
+
+                speedup = reference_time / kernel_time if kernel_time > 0 else 0.0
+                result["reference_time_ms"] = reference_time
+                result["kernel_time_ms"] = kernel_time
+                result["speedup"] = speedup
+                result["fast_1"] = speedup > 1.0   # faster than PyTorch
+                result["fast_2"] = speedup >= 2.0  # at least 2x faster
+
+                print(f"Reference: {reference_time:.4f} ms | Kernel: {kernel_time:.4f} ms | Speedup: {speedup:.2f}x")
+
+        finally:
+            # Always clean up temp files even if the kernel crashed mid-execution
+            try:
+                os.unlink(pytorch_file)
+                os.unlink(triton_file)
+            except Exception:
+                pass
+
+    except Exception as e:
+        result["error"] = f"{type(e).__name__}: {str(e)}\n{traceback.format_exc()}"
+        print(f"Worker error: {result['error']}")
+
+    # Send result back to the parent process via the queue.
+    # Volume I/O (JSON save + commit) is done by the parent after collecting this.
+    result_queue.put(result)
 
 
 @app.function(
@@ -351,292 +568,85 @@ def benchmark_kernelbench(
     Returns:
         Benchmark result dictionary with correctness, speedup, fast_0/1/2 flags.
     """
-    import torch
-    import time
-    import traceback
-    import tempfile
-    import importlib.util
-    import os
-    import sys
-    import inspect
+    import multiprocessing as mp
 
-    # Initialize result dict
-    result = {
-        "kernel_name": kernel_name or "unnamed_kernel",
-        "timestamp": datetime.now().isoformat(),
-        "correctness": False,
-        "speedup": 0.0,
-        "reference_time_ms": None,
-        "kernel_time_ms": None,
-        "fast_0": False,
-        "fast_1": False,
-        "fast_2": False,
-        "error": None,
-    }
+    # Why subprocess isolation?
+    # -------------------------
+    # A CUDA illegal memory access permanently corrupts the GPU context of the
+    # process that triggered it — torch.cuda.empty_cache() / synchronize() cannot
+    # fix this. Modal reuses warm container instances across .remote() calls, so a
+    # corrupted context in call N would break every subsequent call to the same
+    # container.
+    #
+    # Spawning a child process per kernel gives it a completely fresh CUDA context.
+    # If the child crashes, the parent (Modal container) is unaffected and the next
+    # .remote() call arrives to a healthy GPU.
+    #
+    # Why 'spawn' and not 'fork'?
+    # 'fork' copies the parent's live CUDA context into the child, which causes its
+    # own subtle corruption. 'spawn' starts a clean Python interpreter with no
+    # inherited GPU state — the correct choice for CUDA workloads.
+    ctx = mp.get_context("spawn")
+    result_queue = ctx.Queue()
+    p = ctx.Process(
+        target=_kernelbench_worker,
+        args=(triton_code, pytorch_code, n_correctness, n_trials,
+              kernel_name, entry_point, rtol, atol, result_queue),
+        daemon=True,  # auto-killed if the parent dies unexpectedly
+    )
+    p.start()
+    p.join(timeout=300)  # 5-minute hard cap per kernel
 
-    try:
-        # Write pytorch code to a temporary file
-        with tempfile.NamedTemporaryFile(mode='w', suffix='_pytorch.py', delete=False) as f:
-            f.write(pytorch_code)
-            pytorch_file = f.name
-
-        # Write triton code to a temporary file
-        with tempfile.NamedTemporaryFile(mode='w', suffix='_triton.py', delete=False) as f:
-            f.write(triton_code)
-            triton_file = f.name
-
+    if p.is_alive():
+        # Subprocess is hung (infinite loop, deadlock, etc.) — kill it cleanly
+        p.kill()
+        p.join()
+        result = {
+            "kernel_name": kernel_name or "unnamed_kernel",
+            "timestamp": datetime.now().isoformat(),
+            "correctness": False,
+            "speedup": 0.0,
+            "reference_time_ms": None,
+            "kernel_time_ms": None,
+            "fast_0": False,
+            "fast_1": False,
+            "fast_2": False,
+            "error": "Timeout: kernel exceeded 300s limit",
+        }
+        print("Worker timed out — killed subprocess")
+    elif p.exitcode != 0:
+        # Non-zero exit = subprocess crashed. SIGABRT (-6) is the typical signal
+        # from a CUDA illegal memory access. The container's CUDA context is intact.
+        result = {
+            "kernel_name": kernel_name or "unnamed_kernel",
+            "timestamp": datetime.now().isoformat(),
+            "correctness": False,
+            "speedup": 0.0,
+            "reference_time_ms": None,
+            "kernel_time_ms": None,
+            "fast_0": False,
+            "fast_1": False,
+            "fast_2": False,
+            "error": f"Worker crashed (exit code {p.exitcode}) — likely CUDA illegal memory access",
+        }
+        print(f"Worker crashed with exit code {p.exitcode} — container CUDA context intact")
+    else:
+        # Happy path: pull the result dict out of the queue
         try:
-            # Import pytorch module
-            spec = importlib.util.spec_from_file_location("pytorch_module", pytorch_file)
-            pytorch_module = importlib.util.module_from_spec(spec)
-            sys.modules["pytorch_module"] = pytorch_module
-            spec.loader.exec_module(pytorch_module)
-
-            # Get required functions and classes
-            # First try the specified entry_point, then fall back to finding any nn.Module
-            if hasattr(pytorch_module, entry_point):
-                ModelClass = getattr(pytorch_module, entry_point)
-            elif hasattr(pytorch_module, "Model"):
-                ModelClass = pytorch_module.Model
-            else:
-                # Find any class that inherits from nn.Module
-                import torch.nn as nn
-                ModelClass = None
-                for name, obj in vars(pytorch_module).items():
-                    if isinstance(obj, type) and issubclass(obj, nn.Module) and obj is not nn.Module:
-                        ModelClass = obj
-                        print(f"Found nn.Module class: {name}")
-                        break
-                if ModelClass is None:
-                    raise ValueError(f"PyTorch code must define '{entry_point}' class or an nn.Module subclass")
-
-            # Use utilities to extract get_inputs function
-            from utilities import extract_inputs
-            
-            # Test that get_inputs works by extracting once
-            test_inputs = extract_inputs(pytorch_code)
-            print(f"Extracted {len(test_inputs)} inputs with shapes: {[tuple(t.shape) for t in test_inputs if hasattr(t, 'shape')]}")
-            
-            # Keep reference to get_inputs for repeated calls
-            get_inputs = pytorch_module.get_inputs
-            get_init_inputs = getattr(pytorch_module, "get_init_inputs", lambda: [])
-
-            # Import triton module
-            spec = importlib.util.spec_from_file_location("triton_module", triton_file)
-            triton_module = importlib.util.module_from_spec(spec)
-            sys.modules["triton_module"] = triton_module
-            spec.loader.exec_module(triton_module)
-
-            if not hasattr(triton_module, "triton_kernel_wrapper"):
-                raise ValueError("Triton code must define 'triton_kernel_wrapper' function")
-            triton_kernel_wrapper = triton_module.triton_kernel_wrapper
-
-            # Analyze triton_kernel_wrapper signature to understand what inputs it expects
-            sig = inspect.signature(triton_kernel_wrapper)
-            wrapper_params = list(sig.parameters.keys())
-            print(f"triton_kernel_wrapper expects: {wrapper_params}")
-
-            # Create model instance
-            init_inputs = get_init_inputs()
-            if isinstance(init_inputs, (list, tuple)) and len(init_inputs) == 2:
-                # Check if it's [args, kwargs] format
-                if isinstance(init_inputs[0], (list, tuple)) and isinstance(init_inputs[1], dict):
-                    model = ModelClass(*init_inputs[0], **init_inputs[1]).cuda()
-                else:
-                    model = ModelClass(*init_inputs).cuda()
-            elif isinstance(init_inputs, (list, tuple)):
-                model = ModelClass(*init_inputs).cuda()
-            else:
-                model = ModelClass().cuda()
-
-            model.eval()
-
-            # Check correctness
-            print(f"Running {n_correctness} correctness checks...")
-            correctness = True
-
-            for i in range(n_correctness):
-                try:
-                    # Generate inputs using get_inputs()
-                    inputs = get_inputs()
-                    if not isinstance(inputs, (list, tuple)):
-                        inputs = [inputs]
-
-                    # Move inputs to CUDA with error handling
-                    try:
-                        cuda_inputs = [x.cuda() if hasattr(x, 'cuda') else x for x in inputs]
-                    except (torch.cuda.OutOfMemoryError, RuntimeError) as e:
-                        if "illegal memory access" in str(e).lower() or "cuda error" in str(e).lower():
-                            print(f"CUDA error detected during input transfer: {e}")
-                            print("Attempting to reset GPU state...")
-                            torch.cuda.empty_cache()
-                            torch.cuda.synchronize()
-                            # Try to reset the device
-                            try:
-                                torch.cuda.reset_peak_memory_stats()
-                            except:
-                                pass
-                            raise  # Re-raise to mark as failed
-                        raise
-
-                    # Run reference (PyTorch model)
-                    with torch.no_grad():
-                        ref_output = model(*cuda_inputs)
-
-                except (torch.cuda.OutOfMemoryError, RuntimeError, Exception) as e:
-                    error_str = str(e).lower()
-                    if "illegal memory access" in error_str or "cuda error" in error_str:
-                        print(f"CUDA error in correctness check {i+1}: {e}")
-                        print("GPU state corrupted - marking kernel as incorrect")
-                        result["error"] = f"CUDA illegal memory access during correctness check: {str(e)}"
-                        correctness = False
-                        # Reset GPU state for next kernel
-                        try:
-                            torch.cuda.empty_cache()
-                            torch.cuda.synchronize()
-                        except:
-                            pass
-                        break
-                    else:
-                        # Some other error - re-raise
-                        raise
-
-                # Prepare inputs for triton kernel
-                # The triton kernel may expect different arguments depending on implementation
-                # Common pattern: kernel expects (x, weight, bias) or just (x)
-                try:
-                    try:
-                        # Try calling with just the input tensors first
-                        if len(wrapper_params) == 1:
-                            kernel_output = triton_kernel_wrapper(cuda_inputs[0])
-                        elif len(wrapper_params) == len(cuda_inputs):
-                            kernel_output = triton_kernel_wrapper(*cuda_inputs)
-                        else:
-                            # Kernel might expect model parameters too
-                            # Try to extract them from the model
-                            kernel_args = list(cuda_inputs)
-
-                            # Look for common parameter patterns
-                            for name, param in model.named_parameters():
-                                kernel_args.append(param.data)
-
-                            # Try calling with all args
-                            kernel_output = triton_kernel_wrapper(*kernel_args[:len(wrapper_params)])
-
-                    except Exception as e:
-                        error_str = str(e).lower()
-                        # Don't retry on CUDA errors — GPU state is corrupted
-                        if "illegal memory access" in error_str or "cuda error" in error_str:
-                            raise
-                        # If that fails, try with explicit parameter extraction
-                        print(f"First attempt failed: {e}")
-                        # For nn.Linear based models, extract weight and bias
-                        kernel_args = list(cuda_inputs)
-                        for module in model.modules():
-                            if hasattr(module, 'weight') and module.weight is not None:
-                                kernel_args.append(module.weight.data)
-                            if hasattr(module, 'bias') and module.bias is not None:
-                                kernel_args.append(module.bias.data)
-
-                        kernel_output = triton_kernel_wrapper(*kernel_args[:len(wrapper_params)])
-
-                except Exception as e:
-                    error_str = str(e).lower()
-                    if "illegal memory access" in error_str or "cuda error" in error_str:
-                        print(f"CUDA error from triton kernel in check {i+1}: {e}")
-                        print("GPU state corrupted - marking kernel as incorrect")
-                        result["error"] = f"CUDA error from triton kernel: {str(e)}"
-                        correctness = False
-                        try:
-                            torch.cuda.empty_cache()
-                            torch.cuda.synchronize()
-                        except Exception:
-                            pass
-                        break
-                    raise
-
-                # Compare outputs
-                if not torch.allclose(ref_output, kernel_output, rtol=rtol, atol=atol):
-                    correctness = False
-                    max_diff = (ref_output - kernel_output).abs().max().item()
-                    print(f"Correctness check {i+1} failed. Max diff: {max_diff}")
-                    print(f"  ref shape: {ref_output.shape}, kernel shape: {kernel_output.shape}")
-                    break
-
-            result["correctness"] = correctness
-            result["fast_0"] = correctness
-
-            # Measure performance only if correct
-            if correctness:
-                print(f"Running performance benchmark ({n_trials} trials)...")
-
-                # Generate fixed inputs for timing
-                inputs = get_inputs()
-                if not isinstance(inputs, (list, tuple)):
-                    inputs = [inputs]
-                cuda_inputs = [x.cuda() if hasattr(x, 'cuda') else x for x in inputs]
-
-                # Prepare kernel args once
-                if len(wrapper_params) == 1:
-                    kernel_call = lambda: triton_kernel_wrapper(cuda_inputs[0])
-                elif len(wrapper_params) == len(cuda_inputs):
-                    kernel_call = lambda: triton_kernel_wrapper(*cuda_inputs)
-                else:
-                    kernel_args = list(cuda_inputs)
-                    for module in model.modules():
-                        if hasattr(module, 'weight') and module.weight is not None:
-                            kernel_args.append(module.weight.data)
-                        if hasattr(module, 'bias') and module.bias is not None:
-                            kernel_args.append(module.bias.data)
-                    kernel_call = lambda: triton_kernel_wrapper(*kernel_args[:len(wrapper_params)])
-
-                # Warmup
-                for _ in range(10):
-                    with torch.no_grad():
-                        _ = model(*cuda_inputs)
-                    _ = kernel_call()
-                torch.cuda.synchronize()
-
-                # Time reference
-                torch.cuda.synchronize()
-                start = time.perf_counter()
-                for _ in range(n_trials):
-                    with torch.no_grad():
-                        _ = model(*cuda_inputs)
-                torch.cuda.synchronize()
-                reference_time = (time.perf_counter() - start) / n_trials * 1000
-
-                # Time triton kernel
-                torch.cuda.synchronize()
-                start = time.perf_counter()
-                for _ in range(n_trials):
-                    _ = kernel_call()
-                torch.cuda.synchronize()
-                kernel_time = (time.perf_counter() - start) / n_trials * 1000
-
-                speedup = reference_time / kernel_time if kernel_time > 0 else 0.0
-
-                result["reference_time_ms"] = reference_time
-                result["kernel_time_ms"] = kernel_time
-                result["speedup"] = speedup
-                result["fast_1"] = speedup > 1.0
-                result["fast_2"] = speedup >= 2.0
-
-                print(f"Reference time: {reference_time:.4f} ms")
-                print(f"Kernel time: {kernel_time:.4f} ms")
-                print(f"Speedup: {speedup:.2f}x")
-
-        finally:
-            # Cleanup temporary files
-            try:
-                os.unlink(pytorch_file)
-                os.unlink(triton_file)
-            except:
-                pass
-
-    except Exception as e:
-        result["error"] = f"{type(e).__name__}: {str(e)}\n{traceback.format_exc()}"
-        print(f"Error during benchmark: {result['error']}")
+            result = result_queue.get_nowait()
+        except Exception:
+            result = {
+                "kernel_name": kernel_name or "unnamed_kernel",
+                "timestamp": datetime.now().isoformat(),
+                "correctness": False,
+                "speedup": 0.0,
+                "reference_time_ms": None,
+                "kernel_time_ms": None,
+                "fast_0": False,
+                "fast_1": False,
+                "fast_2": False,
+                "error": "Worker exited cleanly but produced no result",
+            }
 
     # Save result to persistent storage
     result_id = f"benchmark_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}"
@@ -674,46 +684,25 @@ def benchmark_batch(kernels: list[dict]) -> list[dict]:
         List of benchmark results
     """
     results = []
-    cuda_corrupted = False
 
     for i, kernel_spec in enumerate(kernels):
         print(f"\n{'='*50}")
         print(f"Benchmarking kernel {i+1}/{len(kernels)}: {kernel_spec.get('kernel_name', 'unnamed')}")
         print(f"{'='*50}")
 
-        # If CUDA was corrupted by a previous kernel, skip remaining
-        if cuda_corrupted:
-            print("Skipping: CUDA context corrupted by a previous kernel")
-            results.append({
-                "kernel_name": kernel_spec.get("kernel_name", "unnamed_kernel"),
-                "timestamp": datetime.now().isoformat(),
-                "correctness": False,
-                "speedup": 0.0,
-                "reference_time_ms": None,
-                "kernel_time_ms": None,
-                "fast_0": False,
-                "fast_1": False,
-                "fast_2": False,
-                "error": "Skipped: CUDA context corrupted by a previous kernel",
-            })
-            continue
-
-        result = benchmark_triton_kernel.local(
-            kernel_code=kernel_spec["kernel_code"],
-            reference_torch_code=kernel_spec["reference_torch_code"],
-            input_shapes=kernel_spec["input_shapes"],
-            n_correctness=kernel_spec.get("n_correctness", 10),
-            n_trials=kernel_spec.get("n_trials", 100),
+        # benchmark_kernelbench runs each kernel in a subprocess internally,
+        # so CUDA illegal memory access in one kernel cannot affect the next.
+        result = benchmark_kernelbench.local(
+            triton_code=kernel_spec["triton_code"],
+            pytorch_code=kernel_spec["pytorch_code"],
+            n_correctness=kernel_spec.get("n_correctness", 5),
+            n_trials=kernel_spec.get("n_trials", 20),
             kernel_name=kernel_spec.get("kernel_name"),
+            entry_point=kernel_spec.get("entry_point", "Model"),
+            rtol=kernel_spec.get("rtol", 1e-4),
+            atol=kernel_spec.get("atol", 1e-4),
         )
         results.append(result)
-
-        # Check if this kernel corrupted CUDA state
-        if result.get("error") and ("cuda" in result["error"].lower() or "illegal memory" in result["error"].lower()):
-            print("CUDA error detected, attempting recovery...")
-            if not _attempt_cuda_recovery():
-                print("CUDA recovery failed - remaining kernels will be skipped")
-                cuda_corrupted = True
 
     return results
 
