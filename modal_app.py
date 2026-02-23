@@ -8,7 +8,14 @@ and measures correctness + performance.
 Functions:
     benchmark_triton_kernel  - Single kernel benchmark (generic input_shapes dict)
     benchmark_kernelbench    - Single kernel benchmark (KernelBench nn.Module pattern)
-    benchmark_batch          - Sequential batch on same container with CUDA recovery
+    benchmark_batch          - Sequential batch on same container
+
+GPU error recovery:
+    Modal handles CUDA crashes automatically. If a kernel triggers an illegal memory
+    access, the container crashes and Modal reschedules on a fresh container with a
+    clean CUDA context (via retries). For non-fatal GPU faults, we call
+    modal.experimental.stop_fetching_inputs() to drain the container gracefully.
+    See: https://modal.com/docs/guide/gpu-health
 
 For parallel execution and results management, see AGENTS.md "Deferred Features".
 """
@@ -61,24 +68,85 @@ image = (
 )
 
 
-def _generic_worker(
+def _make_error_result(kernel_name, error_msg, **extra):
+    """Build a standard error result dict."""
+    result = {
+        "kernel_name": kernel_name or "unnamed_kernel",
+        "timestamp": datetime.now().isoformat(),
+        "correctness": False,
+        "speedup": 0.0,
+        "reference_time_ms": None,
+        "kernel_time_ms": None,
+        "fast_0": False,
+        "fast_1": False,
+        "fast_2": False,
+        "error": error_msg,
+    }
+    result.update(extra)
+    return result
+
+
+@app.function(
+    gpu="H100",
+    image=image,
+    volumes={"/results": volume},
+    timeout=600,
+    retries=modal.Retries(
+        max_retries=2,
+        backoff_coefficient=1.0,
+        initial_delay=1.0,
+    ),
+)
+def benchmark_triton_kernel(
     kernel_code: str,
     reference_torch_code: str,
     input_shapes: dict,
-    n_correctness: int,
-    n_trials: int,
-    n_warmup: int,
-    kernel_name: str,
-    rtol: float,
-    atol: float,
-    result_queue,
-):
+    n_correctness: int = 10,
+    n_trials: int = 100,
+    n_warmup: int = 10,
+    kernel_name: Optional[str] = None,
+    rtol: float = 1e-5,
+    atol: float = 1e-5,
+) -> dict:
     """
-    Module-level worker for benchmark_triton_kernel, running in a spawned subprocess.
+    Benchmark a Triton kernel against PyTorch reference implementation.
 
-    Uses the generic input_shapes dict pattern (reference_impl / triton_kernel_wrapper
-    both accept **kwargs of named tensors).  A CUDA illegal memory access kills only
-    this child; the parent Modal container survives.
+    This is for BENCHMARKING ONLY, not for reward/training.
+
+    GPU error recovery is handled by Modal's infrastructure:
+    - Container crashes (e.g. CUDA illegal memory access) are retried on a fresh
+      container with a clean CUDA context via modal.Retries.
+    - Non-fatal GPU faults trigger modal.experimental.stop_fetching_inputs() to
+      drain the container gracefully.
+
+    Args:
+        kernel_code: Complete Triton kernel source code as string.
+                     Must define a function named 'triton_kernel_wrapper' that takes
+                     the same inputs as the reference and returns the output tensor.
+        reference_torch_code: PyTorch reference implementation as string.
+                              Must define a function named 'reference_impl' that takes
+                              input tensors and returns the output tensor.
+        input_shapes: Dictionary specifying input tensor shapes and dtypes.
+                      Format: {"input_name": {"shape": [dim1, dim2, ...], "dtype": "float32"}}
+        n_correctness: Number of correctness checks with random inputs.
+        n_trials: Number of timing trials for performance measurement.
+        n_warmup: Number of warmup runs before timing.
+        kernel_name: Optional name for the kernel (for logging/results).
+        rtol: Relative tolerance for correctness check.
+        atol: Absolute tolerance for correctness check.
+
+    Returns:
+        Dictionary containing:
+        - correctness: bool - Whether kernel produces correct output
+        - speedup: float - reference_time / kernel_time
+        - reference_time_ms: float - Average reference execution time in ms
+        - kernel_time_ms: float - Average kernel execution time in ms
+        - fast_0: bool - Correct (same as correctness)
+        - fast_1: bool - Correct AND faster than reference
+        - fast_2: bool - Correct AND at least 2x faster than reference
+        - timestamp: str - ISO format timestamp
+        - kernel_name: str - Name of the kernel
+        - error: str - Error message if any
     """
     import sys
     import torch
@@ -87,11 +155,10 @@ def _generic_worker(
     import tempfile
     import importlib.util
     import os
-    from datetime import datetime as _dt
 
     result = {
         "kernel_name": kernel_name or "unnamed_kernel",
-        "timestamp": _dt.now().isoformat(),
+        "timestamp": datetime.now().isoformat(),
         "correctness": False,
         "speedup": 0.0,
         "reference_time_ms": None,
@@ -219,36 +286,80 @@ def _generic_worker(
             sys.modules.pop("kernel_module", None)
             sys.modules.pop("reference_module", None)
 
+    except RuntimeError as e:
+        # GPU faults (e.g. illegal memory access) surface as RuntimeError.
+        # Signal Modal to stop sending work to this container so it gets replaced.
+        modal.experimental.stop_fetching_inputs()
+        result["error"] = f"{type(e).__name__}: {str(e)}\n{traceback.format_exc()}"
+        print(f"GPU fault — draining container: {result['error']}")
+
     except Exception as e:
         result["error"] = f"{type(e).__name__}: {str(e)}\n{traceback.format_exc()}"
-        print(f"Worker error: {result['error']}")
+        print(f"Error: {result['error']}")
 
-    result_queue.put(result)
+    # Save result to persistent storage
+    result_id = f"benchmark_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}"
+    result_path = f"/results/{result_id}.json"
+
+    with open(result_path, "w") as f:
+        json.dump(result, f, indent=2, default=str)
+
+    volume.commit()
+    print(f"Result saved to {result_path}")
+
+    return result
 
 
-def _kernelbench_worker(
+@app.function(
+    gpu="H100",
+    image=image,
+    volumes={"/results": volume},
+    timeout=600,
+    retries=modal.Retries(
+        max_retries=2,
+        backoff_coefficient=1.0,
+        initial_delay=1.0,
+    ),
+)
+def benchmark_kernelbench(
     triton_code: str,
     pytorch_code: str,
-    n_correctness: int,
-    n_trials: int,
-    kernel_name: str,
-    entry_point: str,
-    rtol: float,
-    atol: float,
-    result_queue,
-):
+    n_correctness: int = 5,
+    n_trials: int = 20,
+    kernel_name: Optional[str] = None,
+    entry_point: str = "Model",
+    rtol: float = 1e-4,
+    atol: float = 1e-4,
+) -> dict:
     """
-    Module-level worker that runs inside a spawned subprocess.
+    Benchmark a Triton kernel against PyTorch reference for KernelBench problems.
 
-    Because this is a fresh process it gets its own CUDA context.  A CUDA
-    illegal memory access (SIGABRT/SIGSEGV) will kill only this child; the
-    parent Modal container survives and can handle the next .remote() call
-    without any GPU-context corruption.
+    This function handles the KernelBench/KernelBook pattern where:
+    - pytorch_code defines a nn.Module class with parameters (weights, biases)
+    - pytorch_code defines get_inputs() and get_init_inputs() functions
+    - triton_code defines triton_kernel_wrapper() that takes model inputs
 
-    Result is placed on result_queue; volume I/O is handled by the parent.
+    GPU error recovery is handled by Modal's infrastructure:
+    - Container crashes (e.g. CUDA illegal memory access) are retried on a fresh
+      container with a clean CUDA context via modal.Retries.
+    - Non-fatal GPU faults trigger modal.experimental.stop_fetching_inputs() to
+      drain the container gracefully.
+
+    Args:
+        triton_code: Complete Triton kernel source code as string.
+                     Must define a function named 'triton_kernel_wrapper'.
+        pytorch_code: PyTorch code with a nn.Module class,
+                      get_inputs(), and get_init_inputs() functions.
+        n_correctness: Number of correctness checks with random inputs.
+        n_trials: Number of timing trials for performance measurement.
+        kernel_name: Optional name for the kernel (for logging/results).
+        entry_point: Name of the nn.Module class in pytorch_code (default: "Model").
+        rtol: Relative tolerance for correctness check.
+        atol: Absolute tolerance for correctness check.
+
+    Returns:
+        Benchmark result dictionary with correctness, speedup, fast_0/1/2 flags.
     """
-    # All imports happen here because 'spawn' starts a clean interpreter —
-    # nothing from the parent process is inherited.
     import sys
     sys.path.insert(0, "/root")  # Modal mounts utilities.py at /root
 
@@ -259,12 +370,10 @@ def _kernelbench_worker(
     import importlib.util
     import os
     import inspect
-    from datetime import datetime as _dt
 
-    # Default result — overwritten on success, returned as-is on crash/error
     result = {
         "kernel_name": kernel_name or "unnamed_kernel",
-        "timestamp": _dt.now().isoformat(),
+        "timestamp": datetime.now().isoformat(),
         "correctness": False,
         "speedup": 0.0,
         "reference_time_ms": None,
@@ -372,7 +481,6 @@ def _kernelbench_worker(
                     return triton_kernel_wrapper(*kernel_args[:len(wrapper_params)])
 
             # --- Correctness phase ---
-            # Run both ref and kernel on fresh random inputs each iteration.
             print(f"Running {n_correctness} correctness checks...")
             correctness = True
             for i in range(n_correctness):
@@ -464,248 +572,16 @@ def _kernelbench_worker(
             sys.modules.pop("pytorch_module", None)
             sys.modules.pop("triton_module", None)
 
+    except RuntimeError as e:
+        # GPU faults (e.g. illegal memory access) surface as RuntimeError.
+        # Signal Modal to stop sending work to this container so it gets replaced.
+        modal.experimental.stop_fetching_inputs()
+        result["error"] = f"{type(e).__name__}: {str(e)}\n{traceback.format_exc()}"
+        print(f"GPU fault — draining container: {result['error']}")
+
     except Exception as e:
         result["error"] = f"{type(e).__name__}: {str(e)}\n{traceback.format_exc()}"
-        print(f"Worker error: {result['error']}")
-
-    # Send result back to the parent process via the queue.
-    # Volume I/O (JSON save + commit) is done by the parent after collecting this.
-    result_queue.put(result)
-
-
-@app.function(
-    gpu="H100",
-    image=image,
-    volumes={"/results": volume},
-    timeout=3600,
-)
-def benchmark_triton_kernel(
-    kernel_code: str,
-    reference_torch_code: str,
-    input_shapes: dict,
-    n_correctness: int = 10,
-    n_trials: int = 100,
-    n_warmup: int = 10,
-    kernel_name: Optional[str] = None,
-    rtol: float = 1e-5,
-    atol: float = 1e-5,
-) -> dict:
-    """
-    Benchmark a Triton kernel against PyTorch reference implementation.
-
-    This is for BENCHMARKING ONLY, not for reward/training.
-
-    Uses subprocess isolation (mp.spawn) so a CUDA illegal memory access
-    kills only the child process — the Modal container's GPU context
-    survives and can handle subsequent .remote() calls.
-
-    Args:
-        kernel_code: Complete Triton kernel source code as string.
-                     Must define a function named 'triton_kernel_wrapper' that takes
-                     the same inputs as the reference and returns the output tensor.
-        reference_torch_code: PyTorch reference implementation as string.
-                              Must define a function named 'reference_impl' that takes
-                              input tensors and returns the output tensor.
-        input_shapes: Dictionary specifying input tensor shapes and dtypes.
-                      Format: {"input_name": {"shape": [dim1, dim2, ...], "dtype": "float32"}}
-        n_correctness: Number of correctness checks with random inputs.
-        n_trials: Number of timing trials for performance measurement.
-        n_warmup: Number of warmup runs before timing.
-        kernel_name: Optional name for the kernel (for logging/results).
-        rtol: Relative tolerance for correctness check.
-        atol: Absolute tolerance for correctness check.
-
-    Returns:
-        Dictionary containing:
-        - correctness: bool - Whether kernel produces correct output
-        - speedup: float - reference_time / kernel_time
-        - reference_time_ms: float - Average reference execution time in ms
-        - kernel_time_ms: float - Average kernel execution time in ms
-        - fast_0: bool - Correct (same as correctness)
-        - fast_1: bool - Correct AND faster than reference
-        - fast_2: bool - Correct AND at least 2x faster than reference
-        - timestamp: str - ISO format timestamp
-        - kernel_name: str - Name of the kernel
-        - error: str - Error message if any
-    """
-    import multiprocessing as mp
-
-    def _make_error_result(error_msg):
-        return {
-            "kernel_name": kernel_name or "unnamed_kernel",
-            "timestamp": datetime.now().isoformat(),
-            "correctness": False,
-            "speedup": 0.0,
-            "reference_time_ms": None,
-            "kernel_time_ms": None,
-            "fast_0": False,
-            "fast_1": False,
-            "fast_2": False,
-            "error": error_msg,
-            "input_shapes": input_shapes,
-            "n_correctness": n_correctness,
-            "n_trials": n_trials,
-        }
-
-    ctx = mp.get_context("spawn")
-    result_queue = ctx.Queue()
-    p = ctx.Process(
-        target=_generic_worker,
-        args=(kernel_code, reference_torch_code, input_shapes,
-              n_correctness, n_trials, n_warmup,
-              kernel_name, rtol, atol, result_queue),
-        daemon=True,
-    )
-    p.start()
-    p.join(timeout=300)  # 5-minute hard cap
-
-    if p.is_alive():
-        p.kill()
-        p.join()
-        result = _make_error_result("Timeout: kernel exceeded 300s limit")
-        print("Worker timed out — killed subprocess")
-    elif p.exitcode != 0:
-        result = _make_error_result(
-            f"Worker crashed (exit code {p.exitcode}) — likely CUDA illegal memory access"
-        )
-        print(f"Worker crashed with exit code {p.exitcode} — container CUDA context intact")
-    else:
-        try:
-            result = result_queue.get_nowait()
-        except Exception:
-            result = _make_error_result("Worker exited cleanly but produced no result")
-
-    # Save result to persistent storage
-    result_id = f"benchmark_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}"
-    result_path = f"/results/{result_id}.json"
-
-    with open(result_path, "w") as f:
-        json.dump(result, f, indent=2, default=str)
-
-    volume.commit()
-    print(f"Result saved to {result_path}")
-
-    return result
-
-
-@app.function(
-    gpu="H100",
-    image=image,
-    volumes={"/results": volume},
-    timeout=3600,
-)
-def benchmark_kernelbench(
-    triton_code: str,
-    pytorch_code: str,
-    n_correctness: int = 5,
-    n_trials: int = 20,
-    kernel_name: Optional[str] = None,
-    entry_point: str = "Model",
-    rtol: float = 1e-4,
-    atol: float = 1e-4,
-) -> dict:
-    """
-    Benchmark a Triton kernel against PyTorch reference for KernelBench problems.
-
-    This function handles the KernelBench/KernelBook pattern where:
-    - pytorch_code defines a nn.Module class with parameters (weights, biases)
-    - pytorch_code defines get_inputs() and get_init_inputs() functions
-    - triton_code defines triton_kernel_wrapper() that takes model inputs
-
-    Args:
-        triton_code: Complete Triton kernel source code as string.
-                     Must define a function named 'triton_kernel_wrapper'.
-        pytorch_code: PyTorch code with a nn.Module class,
-                      get_inputs(), and get_init_inputs() functions.
-        n_correctness: Number of correctness checks with random inputs.
-        n_trials: Number of timing trials for performance measurement.
-        kernel_name: Optional name for the kernel (for logging/results).
-        entry_point: Name of the nn.Module class in pytorch_code (default: "Model").
-        rtol: Relative tolerance for correctness check.
-        atol: Absolute tolerance for correctness check.
-
-    Returns:
-        Benchmark result dictionary with correctness, speedup, fast_0/1/2 flags.
-    """
-    import multiprocessing as mp
-
-    # Why subprocess isolation?
-    # -------------------------
-    # A CUDA illegal memory access permanently corrupts the GPU context of the
-    # process that triggered it — torch.cuda.empty_cache() / synchronize() cannot
-    # fix this. Modal reuses warm container instances across .remote() calls, so a
-    # corrupted context in call N would break every subsequent call to the same
-    # container.
-    #
-    # Spawning a child process per kernel gives it a completely fresh CUDA context.
-    # If the child crashes, the parent (Modal container) is unaffected and the next
-    # .remote() call arrives to a healthy GPU.
-    #
-    # Why 'spawn' and not 'fork'?
-    # 'fork' copies the parent's live CUDA context into the child, which causes its
-    # own subtle corruption. 'spawn' starts a clean Python interpreter with no
-    # inherited GPU state — the correct choice for CUDA workloads.
-    ctx = mp.get_context("spawn")
-    result_queue = ctx.Queue()
-    p = ctx.Process(
-        target=_kernelbench_worker,
-        args=(triton_code, pytorch_code, n_correctness, n_trials,
-              kernel_name, entry_point, rtol, atol, result_queue),
-        daemon=True,  # auto-killed if the parent dies unexpectedly
-    )
-    p.start()
-    p.join(timeout=300)  # 5-minute hard cap per kernel
-
-    if p.is_alive():
-        # Subprocess is hung (infinite loop, deadlock, etc.) — kill it cleanly
-        p.kill()
-        p.join()
-        result = {
-            "kernel_name": kernel_name or "unnamed_kernel",
-            "timestamp": datetime.now().isoformat(),
-            "correctness": False,
-            "speedup": 0.0,
-            "reference_time_ms": None,
-            "kernel_time_ms": None,
-            "fast_0": False,
-            "fast_1": False,
-            "fast_2": False,
-            "error": "Timeout: kernel exceeded 300s limit",
-        }
-        print("Worker timed out — killed subprocess")
-    elif p.exitcode != 0:
-        # Non-zero exit = subprocess crashed. SIGABRT (-6) is the typical signal
-        # from a CUDA illegal memory access. The container's CUDA context is intact.
-        result = {
-            "kernel_name": kernel_name or "unnamed_kernel",
-            "timestamp": datetime.now().isoformat(),
-            "correctness": False,
-            "speedup": 0.0,
-            "reference_time_ms": None,
-            "kernel_time_ms": None,
-            "fast_0": False,
-            "fast_1": False,
-            "fast_2": False,
-            "error": f"Worker crashed (exit code {p.exitcode}) — likely CUDA illegal memory access",
-        }
-        print(f"Worker crashed with exit code {p.exitcode} — container CUDA context intact")
-    else:
-        # Happy path: pull the result dict out of the queue
-        try:
-            result = result_queue.get_nowait()
-        except Exception:
-            result = {
-                "kernel_name": kernel_name or "unnamed_kernel",
-                "timestamp": datetime.now().isoformat(),
-                "correctness": False,
-                "speedup": 0.0,
-                "reference_time_ms": None,
-                "kernel_time_ms": None,
-                "fast_0": False,
-                "fast_1": False,
-                "fast_2": False,
-                "error": "Worker exited cleanly but produced no result",
-            }
+        print(f"Error: {result['error']}")
 
     # Save result to persistent storage
     result_id = f"benchmark_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}"
@@ -725,16 +601,24 @@ def benchmark_kernelbench(
     image=image,
     volumes={"/results": volume},
     timeout=7200,
+    retries=modal.Retries(
+        max_retries=2,
+        backoff_coefficient=1.0,
+        initial_delay=1.0,
+    ),
 )
 def benchmark_batch(kernels: list[dict]) -> list[dict]:
     """
     Benchmark multiple Triton kernels in batch (SEQUENTIAL - same container).
 
+    Each kernel is benchmarked via benchmark_kernelbench.local(). If a kernel
+    causes a fatal CUDA error, the container crashes and Modal retries on a
+    fresh container. Non-fatal GPU faults drain the container gracefully.
+
     Args:
         kernels: List of kernel specifications, each containing:
-            - kernel_code: Triton kernel source code
-            - reference_torch_code: PyTorch reference implementation
-            - input_shapes: Input tensor specifications
+            - triton_code: Triton kernel source code
+            - pytorch_code: PyTorch reference implementation
             - kernel_name (optional): Name for the kernel
             - n_correctness (optional): Number of correctness checks
             - n_trials (optional): Number of timing trials
@@ -749,8 +633,6 @@ def benchmark_batch(kernels: list[dict]) -> list[dict]:
         print(f"Benchmarking kernel {i+1}/{len(kernels)}: {kernel_spec.get('kernel_name', 'unnamed')}")
         print(f"{'='*50}")
 
-        # benchmark_kernelbench runs each kernel in a subprocess internally,
-        # so CUDA illegal memory access in one kernel cannot affect the next.
         result = benchmark_kernelbench.local(
             triton_code=kernel_spec["triton_code"],
             pytorch_code=kernel_spec["pytorch_code"],
@@ -788,24 +670,24 @@ def triton_sum_dim1_kernel(
 ):
     """Sum reduction along dim=1. Each thread block handles BLOCK_SIZE output elements."""
     pid = tl.program_id(0)
-    
+
     # Each program handles BLOCK_SIZE output elements
     offsets = pid * BLOCK_SIZE + tl.arange(0, BLOCK_SIZE)
     total_output = batch_size * inner_size
     mask = offsets < total_output
-    
+
     # Calculate batch and inner indices for each output element
     batch_idx = offsets // inner_size
     inner_idx = offsets % inner_size
-    
+
     # Input stride: [batch, reduce, h, w] flattened
     # Stride for batch = reduce_dim * inner_size
     # Stride for reduce = inner_size
     batch_stride = reduce_dim * inner_size
-    
+
     # Accumulate sum over reduce dimension
     acc = tl.zeros([BLOCK_SIZE], dtype=tl.float32)
-    
+
     # Use a while loop instead of for loop for dynamic reduce_dim
     # This avoids Triton trying to unroll a large loop
     r = 0
@@ -814,7 +696,7 @@ def triton_sum_dim1_kernel(
         val = tl.load(in_ptr + in_offset, mask=mask, other=0.0)
         acc += val
         r += 1
-    
+
     tl.store(out_ptr + offsets, acc, mask=mask)
 
 
@@ -822,24 +704,24 @@ def triton_kernel_wrapper(x):
     """Wrapper: sum 4D tensor along dim=1."""
     assert x.is_cuda, "Input must be on CUDA"
     assert x.dim() == 4, "Input must be 4D"
-    
+
     batch, reduce_dim, h, w = x.shape
     inner_size = h * w
-    
+
     # Output shape: [batch, h, w]
     output = torch.empty((batch, h, w), dtype=x.dtype, device=x.device)
-    
+
     # Total output elements
     total_output = batch * inner_size
-    
+
     # Config
     BLOCK_SIZE = 1024
     grid = ((total_output + BLOCK_SIZE - 1) // BLOCK_SIZE,)
-    
+
     # Flatten input to 1D for pointer arithmetic
     x_flat = x.contiguous().view(-1)
     out_flat = output.view(-1)
-    
+
     triton_sum_dim1_kernel[grid](
         x_flat, out_flat,
         batch, inner_size,
@@ -848,7 +730,7 @@ def triton_kernel_wrapper(x):
         num_warps=8,
         num_stages=1,
     )
-    
+
     return output
 '''
 
