@@ -1,253 +1,196 @@
 # KernelBench Triton
 
-A benchmarking environment for Triton kernels on Modal H100 GPUs. This is adapted from the [KernelBench](https://github.com/ScalingIntelligence/KernelBench) project by Stanford's Scaling Intelligence Lab.
+A benchmarking and trace generation pipeline for Triton GPU kernels on Modal H100 GPUs. Models generate Triton kernels from PyTorch code, which are validated for correctness and performance on remote H100s. Supports single-turn and multi-turn iterative refinement.
 
-**Note: This is for BENCHMARKING ONLY, not for reward/training.**
+Adapted from the [KernelBench](https://github.com/ScalingIntelligence/KernelBench) project by Stanford's Scaling Intelligence Lab.
 
-## Features
+## Supported Models
 
-- Benchmark Triton kernels against PyTorch reference implementations
-- Run on NVIDIA H100 GPUs (Hopper architecture) via Modal
-- Measure correctness with multiple random inputs
-- Measure performance with proper warmup and synchronization
-- Calculate speedup metrics (fast_0, fast_1, fast_2)
-- Persistent storage for all benchmark results
-
-## Prerequisites
-
-1. **Create a Modal account**: Sign up at [modal.com](https://modal.com)
-
-2. **Install dependencies**:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-3. **Authenticate with Modal**:
-   ```bash
-   modal setup
-   ```
-
-## SGLang Inference Serving
-
-This project uses **SGLang** for serving the finetuned Trinity-Mini model with LoRA adapters. SGLang is specifically chosen because it **fully supports LoRA on MoE (Mixture-of-Experts) layers**, including `gate_proj`, `up_proj`, and `down_proj`, which is critical for Trinity-Mini's 26B MoE architecture.
-
-**Why SGLang over vLLM?**
-- ✅ **Full MoE + LoRA support**: Handles LoRA adapters on all MoE expert layers
-- ✅ **No weight corruption**: Safe adapter loading/unloading without model corruption
-- ✅ **Production-ready**: Optimized for MoE architectures with batching support
-
-### Setup SGLang Server
-
-See [`SGLANG_SETUP.md`](./SGLANG_SETUP.md) for detailed setup instructions.
-
-**Quick commands:**
-```bash
-# 1. Login to Modal
-modal token new
-
-# 2. Download LoRA checkpoint (if needed)
-cd /home/ubuntu/Arcee-Mini-Kernel
-source .venv/bin/activate
-uv run python inference/download_lora_from_modal.py
-
-# 3. Start SGLang server with LoRA
-bash inference/serve_trinity_uv.sh
-
-# Or start base model only
-bash inference/serve_trinity_base.sh
-```
-
+| Model | Params (total / active) | Architecture | GPUs Required | Run Script |
+|-------|------------------------|--------------|---------------|------------|
+| GLM-4.5-Air | 106B / 12B | MoE | 4x H100 (BF16) | `run_glm45_air.sh` |
+| GPT-OSS-120B | 120B | Dense | 2x H100 | `run_gpt_oss.sh` |
+| Qwen3-235B-A22B | 235B / 22B | MoE (128 experts) | 8x H100 (FP8) | `serve_qwen3_235b.sh` |
 
 ## Quick Start
 
-### Deploy the Application
+### 1. Prerequisites
+
+```bash
+# Install uv (if not already installed)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Authenticate with Modal
+modal token set --token-id <ID> --token-secret <SECRET>
+```
+
+### 2. Start a Model Server
+
+Each run script handles everything: dependency install, Modal deploy, and vLLM server launch.
+
+```bash
+# GLM-4.5-Air (4x H100, BF16)
+bash run_glm45_air.sh
+
+# GPT-OSS-120B (2x H100)
+bash run_gpt_oss.sh
+
+# Qwen3-235B (8x H100, FP8)
+bash serve_qwen3_235b.sh
+```
+
+Keep the server running in its terminal.
+
+### 3. Generate Traces
+
+In a **new terminal**, run the orchestrator:
+
+```bash
+# Single-turn (default) — one shot per sample
+python orchestrator.py
+
+# Multi-turn — iterative refinement with feedback (up to 4 turns)
+python orchestrator.py --multi-turn
+```
+
+## Running Modes
+
+### Single-Turn
+
+The default mode. Each sample gets one generation attempt. Fast but no self-correction.
+
+```bash
+python orchestrator.py \
+    --output reasoning_traces.json \
+    --kernelbook-samples 1500 \
+    --kernelbench-samples 1000 \
+    --batch-size 10
+```
+
+### Multi-Turn (Iterative Refinement)
+
+Failed or slow kernels get feedback and retry up to `--max-turns` times. This is where the pipeline shines — the model can fix compilation errors, correctness bugs, and optimize performance across turns.
+
+```bash
+python orchestrator.py \
+    --multi-turn \
+    --max-turns 4 \
+    --batch-size 5 \
+    --output reasoning_traces_multiturn.json
+```
+
+**Multi-turn flow:**
+1. Model generates a Triton kernel
+2. Kernel is benchmarked on Modal H100 (correctness + speedup)
+3. If incorrect or slow, feedback is sent back to the model
+4. Model generates an improved kernel
+5. Repeat until correct + fast, or max turns reached
+
+See [`multi_turn.md`](./multi_turn.md) for the full architecture spec.
+
+### Orchestrator CLI Flags
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--vllm-url` | `http://localhost:8000/v1` | vLLM server URL |
+| `--output` | `reasoning_traces.json` | Output JSON file |
+| `--kernelbook-samples` | 1500 | Number of KernelBook samples |
+| `--kernelbench-samples` | 1000 | Number of KernelBench samples |
+| `--batch-size` | 10 | Concurrent generation requests |
+| `--save-interval` | 10 | Save traces every N samples (single-turn) |
+| `--multi-turn` | off | Enable multi-turn iterative refinement |
+| `--max-turns` | 4 | Max turns per sample (multi-turn only) |
+
+## Testing
+
+### Multi-Turn End-to-End Test
+
+A standalone test script exercises the full pipeline without a live vLLM server:
+
+```bash
+python test_multi_turn.py
+```
+
+This runs 4 turns against the deployed Modal function:
+1. **Turn 1:** Buggy kernel (`x * y` instead of `relu(x + y)`) → `correctness=False`
+2. **Turn 2:** Illegal memory access (no bounds mask) → CUDA error
+3. **Turn 3:** Correct but slow (two separate kernels) → `correctness=True`, `speedup < 1.0`
+4. **Turn 4:** Optimized fused kernel (add+relu in one pass) → `correctness=True`, `speedup > 1.0`
+
+Validates: `MultiTurnQueue` state management, Modal benchmarking, feedback routing, and trace building.
+
+## Architecture
+
+```
+┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐
+│  vLLM Server    │     │   Orchestrator   │     │   Modal H100    │
+│  (local GPU)    │◄───►│  orchestrator.py │◄───►│  modal_app.py   │
+│                 │     │                  │     │                 │
+│  GLM / GPT /   │     │  - Generation    │     │  - Correctness  │
+│  Qwen3         │     │  - Extraction    │     │  - Performance  │
+│                 │     │  - Multi-turn    │     │  - Speedup      │
+└─────────────────┘     └──────────────────┘     └─────────────────┘
+                               │
+                               ▼
+                        ┌──────────────────┐
+                        │ MultiTurnQueue   │
+                        │ (passive proxy)  │
+                        │                  │
+                        │ - Deque mgmt     │
+                        │ - Turn counting  │
+                        │ - Feedback build │
+                        │ - Trace finalize │
+                        └──────────────────┘
+```
+
+### Key Files
+
+| File | Purpose |
+|------|---------|
+| `orchestrator.py` | Main pipeline: generation, extraction, validation loop |
+| `multi_turn_queue.py` | Passive proxy: deque, turns, feedback, traces |
+| `modal_app.py` | Modal functions for H100 benchmarking |
+| `dataloader.py` | Loads KernelBook + KernelBench samples |
+| `utilities.py` | Input extraction helpers (mounted into Modal) |
+| `run_glm45_air.sh` | GLM-4.5-Air server launcher (4x H100) |
+| `run_gpt_oss.sh` | GPT-OSS-120B server launcher (2x H100) |
+| `serve_qwen3_235b.sh` | Qwen3-235B server launcher (8x H100) |
+| `test_multi_turn.py` | End-to-end multi-turn test (no vLLM needed) |
+
+## Modal Benchmarking
+
+### Deploy
 
 ```bash
 modal deploy modal_app.py
 ```
 
-### Run the Example
+### Available Functions
 
-```bash
-modal run modal_app.py
-```
+| Function | Use Case |
+|----------|----------|
+| `benchmark_triton_kernel` | Generic benchmark with `input_shapes` dict |
+| `benchmark_kernelbench` | KernelBench `nn.Module` pattern with `get_inputs()` |
+| `benchmark_batch` | Sequential batch on same container |
 
-This runs a simple vector addition benchmark.
-
-## Usage
-
-### Basic Benchmark
+### Benchmark API
 
 ```python
 import modal
 
-# Lookup the deployed app
-benchmark_fn = modal.Function.lookup("kernelbench-triton", "benchmark_triton_kernel")
+benchmark = modal.Function.from_name("kernelbench-triton", "benchmark_triton_kernel")
 
-# Define your Triton kernel
-triton_kernel_code = '''
-import torch
-import triton
-import triton.language as tl
-
-@triton.jit
-def my_kernel(x_ptr, output_ptr, n_elements, BLOCK_SIZE: tl.constexpr):
-    pid = tl.program_id(axis=0)
-    block_start = pid * BLOCK_SIZE
-    offsets = block_start + tl.arange(0, BLOCK_SIZE)
-    mask = offsets < n_elements
-    x = tl.load(x_ptr + offsets, mask=mask)
-    output = x * 2  # Example: double each element
-    tl.store(output_ptr + offsets, output, mask=mask)
-
-def triton_kernel_wrapper(x):
-    """Wrapper that invokes the Triton kernel."""
-    output = torch.empty_like(x)
-    n_elements = x.numel()
-    grid = lambda meta: (triton.cdiv(n_elements, meta["BLOCK_SIZE"]),)
-    my_kernel[grid](x, output, n_elements, BLOCK_SIZE=1024)
-    return output
-'''
-
-# Define PyTorch reference
-reference_code = '''
-import torch
-
-def reference_impl(x):
-    return x * 2
-'''
-
-# Specify input shapes
-input_shapes = {
-    "x": {"shape": [1024 * 1024], "dtype": "float32"},
-}
-
-# Run benchmark
-result = benchmark_fn.remote(
-    kernel_code=triton_kernel_code,
+result = benchmark.remote(
+    kernel_code=triton_code,
     reference_torch_code=reference_code,
-    input_shapes=input_shapes,
-    n_correctness=10,
-    n_trials=100,
-    kernel_name="double_elements",
+    input_shapes={"x": {"shape": [1024, 1024], "dtype": "float32"}},
+    n_correctness=5,
+    n_trials=50,
+    kernel_name="my_kernel",
 )
-
-print(f"Correctness: {result['correctness']}")
-print(f"Speedup: {result['speedup']:.2f}x")
-print(f"fast_0: {result['fast_0']}")
-print(f"fast_1: {result['fast_1']}")
-print(f"fast_2: {result['fast_2']}")
 ```
 
-### Batch Benchmarking
-
-```python
-import modal
-
-benchmark_batch_fn = modal.Function.lookup("kernelbench-triton", "benchmark_batch")
-
-kernels = [
-    {
-        "kernel_code": kernel1_code,
-        "reference_torch_code": ref1_code,
-        "input_shapes": shapes1,
-        "kernel_name": "kernel_1",
-    },
-    {
-        "kernel_code": kernel2_code,
-        "reference_torch_code": ref2_code,
-        "input_shapes": shapes2,
-        "kernel_name": "kernel_2",
-    },
-]
-
-results = benchmark_batch_fn.remote(kernels)
-for r in results:
-    print(f"{r['kernel_name']}: speedup={r['speedup']:.2f}x, correct={r['correctness']}")
-```
-
-### Get All Results
-
-```python
-import modal
-
-get_results_fn = modal.Function.lookup("kernelbench-triton", "get_all_results")
-results = get_results_fn.remote()
-
-for r in results:
-    print(f"{r['timestamp']}: {r['kernel_name']} - {r['speedup']:.2f}x")
-```
-
-### Get Summary Statistics
-
-```python
-import modal
-
-get_stats_fn = modal.Function.lookup("kernelbench-triton", "get_summary_statistics")
-stats = get_stats_fn.remote()
-
-print(f"Total benchmarks: {stats['total_benchmarks']}")
-print(f"Correctness rate: {stats['correctness_rate']:.2%}")
-print(f"fast_1 rate: {stats['fast_1_rate']:.2%}")
-print(f"fast_2 rate: {stats['fast_2_rate']:.2%}")
-print(f"Average speedup: {stats['average_speedup']:.2f}x")
-```
-
-### Clear Results
-
-```python
-import modal
-
-clear_fn = modal.Function.lookup("kernelbench-triton", "clear_results")
-result = clear_fn.remote()
-print(f"Deleted {result['deleted_files']} result files")
-```
-
-## Kernel Code Requirements
-
-### Triton Kernel Code
-
-Your kernel code **must** define a function named `triton_kernel_wrapper` that:
-- Takes the same keyword arguments as defined in `input_shapes`
-- Returns a single output tensor
-- Handles all Triton kernel invocation internally
-
-```python
-def triton_kernel_wrapper(x, y):
-    """Wrapper function that invokes the Triton kernel."""
-    output = torch.empty_like(x)
-    n_elements = x.numel()
-    grid = lambda meta: (triton.cdiv(n_elements, meta["BLOCK_SIZE"]),)
-    my_kernel[grid](x, y, output, n_elements, BLOCK_SIZE=1024)
-    return output
-```
-
-### Reference Code
-
-Your reference code **must** define a function named `reference_impl` that:
-- Takes the same keyword arguments as defined in `input_shapes`
-- Returns a single output tensor using PyTorch operations
-
-```python
-def reference_impl(x, y):
-    """Reference PyTorch implementation."""
-    return x + y
-```
-
-## Input Shapes Format
-
-```python
-input_shapes = {
-    "tensor_name": {
-        "shape": [dim1, dim2, ...],  # Required
-        "dtype": "float32",           # Optional, defaults to float32
-    },
-}
-```
-
-Supported dtypes: `float32`, `float16`, `bfloat16`, `int32`, `int64`
-
-## Metrics
+### Metrics
 
 | Metric | Description |
 |--------|-------------|
@@ -255,174 +198,55 @@ Supported dtypes: `float32`, `float16`, `bfloat16`, `int32`, `int64`
 | `speedup` | `reference_time / kernel_time` |
 | `fast_0` | Correct (same as correctness) |
 | `fast_1` | Correct AND faster than reference (speedup > 1.0) |
-| `fast_2` | Correct AND at least 2x faster than reference (speedup >= 2.0) |
+| `fast_2` | Correct AND at least 2x faster (speedup >= 2.0) |
 
-## Configuration
+## Kernel Code Requirements
 
-### Benchmark Parameters
+### Triton Kernel
 
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `n_correctness` | 10 | Number of correctness checks with random inputs |
-| `n_trials` | 100 | Number of timing trials |
-| `n_warmup` | 10 | Number of warmup runs before timing |
-| `rtol` | 1e-5 | Relative tolerance for correctness check |
-| `atol` | 1e-5 | Absolute tolerance for correctness check |
-
-### GPU Configuration
-
-The environment is configured for H100 GPUs:
-- `GPU_CONFIG`: H100
-- `TORCH_CUDA_ARCH_LIST`: 9.0 (Hopper architecture)
-
-## Result Storage
-
-All benchmark results are saved to a persistent Modal Volume named `triton-benchmark-results`. Each result is saved as a JSON file with a timestamp-based filename.
-
-Example result structure:
-```json
-{
-  "kernel_name": "vector_add",
-  "timestamp": "2024-01-15T10:30:00.123456",
-  "correctness": true,
-  "speedup": 1.45,
-  "reference_time_ms": 0.5234,
-  "kernel_time_ms": 0.3610,
-  "fast_0": true,
-  "fast_1": true,
-  "fast_2": false,
-  "error": null,
-  "input_shapes": {...},
-  "n_correctness": 10,
-  "n_trials": 100
-}
-```
-
-## Example Kernels
-
-### Vector Addition
+Must define `triton_kernel_wrapper` that takes the same inputs as the reference:
 
 ```python
-triton_kernel_code = '''
 import torch
 import triton
 import triton.language as tl
 
 @triton.jit
-def add_kernel(x_ptr, y_ptr, output_ptr, n_elements, BLOCK_SIZE: tl.constexpr):
-    pid = tl.program_id(axis=0)
-    block_start = pid * BLOCK_SIZE
-    offsets = block_start + tl.arange(0, BLOCK_SIZE)
-    mask = offsets < n_elements
+def my_kernel(x_ptr, out_ptr, n, BLOCK_SIZE: tl.constexpr):
+    pid = tl.program_id(0)
+    offsets = pid * BLOCK_SIZE + tl.arange(0, BLOCK_SIZE)
+    mask = offsets < n
     x = tl.load(x_ptr + offsets, mask=mask)
-    y = tl.load(y_ptr + offsets, mask=mask)
-    output = x + y
-    tl.store(output_ptr + offsets, output, mask=mask)
+    tl.store(out_ptr + offsets, x * 2, mask=mask)
 
-def triton_kernel_wrapper(x, y):
+def triton_kernel_wrapper(x):
     output = torch.empty_like(x)
-    n_elements = x.numel()
-    grid = lambda meta: (triton.cdiv(n_elements, meta["BLOCK_SIZE"]),)
-    add_kernel[grid](x, y, output, n_elements, BLOCK_SIZE=1024)
+    n = x.numel()
+    grid = ((n + 1023) // 1024,)
+    my_kernel[grid](x, output, n, BLOCK_SIZE=1024)
     return output
-'''
-
-reference_code = '''
-import torch
-def reference_impl(x, y):
-    return x + y
-'''
-
-input_shapes = {
-    "x": {"shape": [1024 * 1024], "dtype": "float32"},
-    "y": {"shape": [1024 * 1024], "dtype": "float32"},
-}
 ```
 
-### Matrix Multiplication
+### PyTorch Reference
+
+Must define `reference_impl` with matching signature:
 
 ```python
-triton_kernel_code = '''
 import torch
-import triton
-import triton.language as tl
 
-@triton.jit
-def matmul_kernel(
-    a_ptr, b_ptr, c_ptr,
-    M, N, K,
-    stride_am, stride_ak,
-    stride_bk, stride_bn,
-    stride_cm, stride_cn,
-    BLOCK_SIZE_M: tl.constexpr, BLOCK_SIZE_N: tl.constexpr, BLOCK_SIZE_K: tl.constexpr,
-):
-    pid_m = tl.program_id(axis=0)
-    pid_n = tl.program_id(axis=1)
-
-    offs_m = pid_m * BLOCK_SIZE_M + tl.arange(0, BLOCK_SIZE_M)
-    offs_n = pid_n * BLOCK_SIZE_N + tl.arange(0, BLOCK_SIZE_N)
-    offs_k = tl.arange(0, BLOCK_SIZE_K)
-
-    a_ptrs = a_ptr + offs_m[:, None] * stride_am + offs_k[None, :] * stride_ak
-    b_ptrs = b_ptr + offs_k[:, None] * stride_bk + offs_n[None, :] * stride_bn
-
-    acc = tl.zeros((BLOCK_SIZE_M, BLOCK_SIZE_N), dtype=tl.float32)
-    for k in range(0, K, BLOCK_SIZE_K):
-        a = tl.load(a_ptrs, mask=(offs_m[:, None] < M) & (offs_k[None, :] + k < K), other=0.0)
-        b = tl.load(b_ptrs, mask=(offs_k[:, None] + k < K) & (offs_n[None, :] < N), other=0.0)
-        acc += tl.dot(a, b)
-        a_ptrs += BLOCK_SIZE_K * stride_ak
-        b_ptrs += BLOCK_SIZE_K * stride_bk
-
-    c_ptrs = c_ptr + offs_m[:, None] * stride_cm + offs_n[None, :] * stride_cn
-    mask = (offs_m[:, None] < M) & (offs_n[None, :] < N)
-    tl.store(c_ptrs, acc, mask=mask)
-
-def triton_kernel_wrapper(a, b):
-    M, K = a.shape
-    K, N = b.shape
-    c = torch.empty((M, N), device=a.device, dtype=a.dtype)
-    grid = lambda meta: (triton.cdiv(M, meta["BLOCK_SIZE_M"]), triton.cdiv(N, meta["BLOCK_SIZE_N"]))
-    matmul_kernel[grid](
-        a, b, c,
-        M, N, K,
-        a.stride(0), a.stride(1),
-        b.stride(0), b.stride(1),
-        c.stride(0), c.stride(1),
-        BLOCK_SIZE_M=64, BLOCK_SIZE_N=64, BLOCK_SIZE_K=32,
-    )
-    return c
-'''
-
-reference_code = '''
-import torch
-def reference_impl(a, b):
-    return torch.matmul(a, b)
-'''
-
-input_shapes = {
-    "a": {"shape": [512, 512], "dtype": "float32"},
-    "b": {"shape": [512, 512], "dtype": "float32"},
-}
+def reference_impl(x):
+    return x * 2
 ```
 
 ## Troubleshooting
 
-### Common Issues
-
-1. **"triton_kernel_wrapper not found"**: Ensure your kernel code defines a function named `triton_kernel_wrapper`.
-
-2. **"reference_impl not found"**: Ensure your reference code defines a function named `reference_impl`.
-
-3. **Correctness failures**: Check that your kernel handles boundary conditions correctly (use masks).
-
-4. **Low speedup**: Triton may not always be faster than PyTorch for simple operations. Complex fused operations typically show better speedups.
-
-### Debug Tips
-
-- Set `n_correctness=1` and `n_trials=1` for quick debugging
-- Check the `error` field in results for detailed error messages
-- Use smaller input shapes when debugging
+| Issue | Fix |
+|-------|-----|
+| "Modal not configured" | `modal token set --token-id <ID> --token-secret <SECRET>` |
+| "triton_kernel_wrapper not found" | Ensure kernel code defines `triton_kernel_wrapper` function |
+| GPU OOM | Reduce `--gpu-memory-utilization` or `--max-model-len` |
+| vLLM connection error | Check server is running: `curl http://localhost:8000/v1/models` |
+| CUDA illegal memory access | Modal auto-retries on fresh container (see `modal_app.py`) |
 
 ## Resources
 
@@ -430,3 +254,4 @@ input_shapes = {
 - [Triton Documentation](https://triton-lang.org/)
 - [KernelBench Paper](https://scalingintelligence.stanford.edu/blogs/kernelbench/)
 - [KernelBench GitHub](https://github.com/ScalingIntelligence/KernelBench)
+- [vLLM Documentation](https://docs.vllm.ai/)

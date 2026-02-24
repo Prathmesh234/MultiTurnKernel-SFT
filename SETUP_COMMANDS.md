@@ -1,86 +1,105 @@
-# Arcee Mini Kernel - Setup Commands
+# Setup Commands
 
 ## Prerequisites
 
-Before running the commands, you need to set up the following:
-
 ### 1. Modal Authentication
-
-You need to configure your Modal token to deploy the H100 benchmarking containers:
 
 ```bash
 modal token set --token-id <YOUR_MODAL_TOKEN_ID> --token-secret <YOUR_MODAL_TOKEN_SECRET>
 ```
 
-Get your Modal tokens from: https://modal.com/settings
+Get tokens from: https://modal.com/settings
 
-To verify your Modal token is configured:
+Verify:
 ```bash
 modal token info
 ```
 
 ### 2. Environment Variables
 
-Create a `.env` file in the project root (use `.env.example` as a template):
+Create a `.env` file (use `.env.example` as a template):
 
 ```bash
-# Required for Hugging Face datasets
 HF_TOKEN=your_huggingface_token_here
-
-# vLLM server configuration (defaults are usually fine)
-VLLM_BASE_URL=http://localhost:8000/v1
-MODEL_NAME=openai/gpt-oss-120b
-
-# Generation settings (optional - these are the defaults)
-MAX_TOKENS=16384
-TEMPERATURE=0.7
-REASONING_LEVEL=high
-
-# Output configuration
-OUTPUT_FILE=reasoning_traces.json
 ```
 
-**Note:** The Modal token is set via the CLI command above, NOT in the `.env` file.
+**Note:** The Modal token is set via CLI, NOT in `.env`.
 
 ### 3. GPU Requirements
 
-For the vLLM server:
-- **2 GPUs required** (configured for tensor parallelism with `TENSOR_PARALLEL_SIZE=2`)
-- The script uses `CUDA_VISIBLE_DEVICES=0,1`
-- Ensure you have sufficient GPU memory (model is 120B parameters)
+| Model | GPUs | VRAM | Script |
+|-------|------|------|--------|
+| GPT-OSS-120B | 2x H100 | ~160 GB | `run_gpt_oss.sh` |
+| GLM-4.5-Air (BF16) | 4x H100 | ~320 GB | `run_glm45_air.sh` |
+| Qwen3-235B (FP8) | 8x H100 (NVLink) | ~640 GB | `serve_qwen3_235b.sh` |
 
-## Commands
+## Quick Start (Recommended)
 
-### Option 1: Use the All-in-One Script (Recommended)
+### Option A: All-in-One Scripts
 
-This script will:
-1. Deploy Modal containers for H100 benchmarking
-2. Start the vLLM server for gpt-oss-120b
+Each script handles: `uv sync` → vLLM install → Modal deploy → server launch.
 
 ```bash
+# GLM-4.5-Air (4x H100)
+bash run_glm45_air.sh
+
+# GPT-OSS-120B (2x H100)
 bash run_gpt_oss.sh
+
+# Qwen3-235B (8x H100, FP8)
+bash serve_qwen3_235b.sh
 ```
 
-**Note:** This script will run the vLLM server in the foreground. Keep this terminal open.
+Keep the server running. Then in a **new terminal**:
 
-### Option 2: Run Steps Manually
+```bash
+# Single-turn generation
+python orchestrator.py
 
-#### Step 1: Deploy Modal Containers
+# Multi-turn generation (iterative refinement)
+python orchestrator.py --multi-turn --max-turns 4
+```
+
+### Option B: Manual Steps
+
+#### Step 1: Install Dependencies
+
+```bash
+uv sync
+uv pip install vllm "huggingface-hub<1.0"
+```
+
+#### Step 2: Deploy Modal
 
 ```bash
 uv run --no-sync modal deploy modal_app.py
 ```
 
-This deploys the H100 benchmarking functions to Modal that will be used for validation.
+#### Step 3: Start vLLM Server
 
-#### Step 2: Start vLLM Server
-
-In a separate terminal, start the vLLM server:
-
+**GLM-4.5-Air (4x H100):**
 ```bash
+export CUDA_VISIBLE_DEVICES=0,1,2,3
+
+uv run --no-sync vllm serve zai-org/GLM-4.5-Air \
+    --host 0.0.0.0 --port 8000 \
+    --tensor-parallel-size 4 \
+    --max-model-len 32768 \
+    --gpu-memory-utilization 0.9 \
+    --trust-remote-code \
+    --enable-prefix-caching \
+    --dtype auto \
+    --reasoning-parser glm45 \
+    --tool-call-parser glm45 \
+    --enable-auto-tool-choice
+```
+
+**GPT-OSS-120B (2x H100):**
+```bash
+export CUDA_VISIBLE_DEVICES=0,1
+
 uv run --no-sync vllm serve openai/gpt-oss-120b \
-    --host 0.0.0.0 \
-    --port 8000 \
+    --host 0.0.0.0 --port 8000 \
     --tensor-parallel-size 2 \
     --max-model-len 16384 \
     --gpu-memory-utilization 0.9 \
@@ -91,76 +110,104 @@ uv run --no-sync vllm serve openai/gpt-oss-120b \
     --tool-call-parser harmony
 ```
 
-**Environment variables to set before running:**
+**Qwen3-235B-A22B (8x H100, FP8):**
 ```bash
-export CUDA_VISIBLE_DEVICES=0,1
+export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
+export VLLM_USE_V1=1
+export SAFETENSORS_FAST_GPU=1
+export VLLM_WORKER_MULTIPROC_METHOD=spawn
+
+uv run --no-sync vllm serve Qwen/Qwen3-235B-A22B-Instruct-2507-FP8 \
+    --host 0.0.0.0 --port 8000 \
+    --tensor-parallel-size 8 \
+    --enable-expert-parallel \
+    --max-model-len 131072 \
+    --gpu-memory-utilization 0.92 \
+    --max-num-seqs 64 \
+    --swap-space 16 \
+    --enable-reasoning \
+    --reasoning-parser qwen3 \
+    --trust-remote-code \
+    --enable-prefix-caching \
+    --dtype auto
 ```
 
-### Generate Reasoning Traces
-
-Once the vLLM server is running (and Modal is deployed), in a **new terminal**, run the orchestrator:
+#### Step 4: Generate Traces
 
 ```bash
-uv run --no-sync python orchestrator.py
+# Single-turn
+python orchestrator.py --output reasoning_traces.json
+
+# Multi-turn
+python orchestrator.py \
+    --multi-turn \
+    --max-turns 4 \
+    --batch-size 5 \
+    --output reasoning_traces_multiturn.json
 ```
 
-**Optional arguments:**
+## Orchestrator CLI Reference
+
 ```bash
-uv run --no-sync python orchestrator.py \
+python orchestrator.py \
     --vllm-url http://localhost:8000/v1 \
     --output reasoning_traces.json \
     --kernelbook-samples 1500 \
     --kernelbench-samples 1000 \
     --batch-size 10 \
-    --save-interval 10
+    --save-interval 10 \
+    --multi-turn \
+    --max-turns 4
 ```
 
-## Summary of Required Values
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--vllm-url` | `http://localhost:8000/v1` | vLLM server URL |
+| `--output` | `reasoning_traces.json` | Output JSON file |
+| `--kernelbook-samples` | 1500 | KernelBook samples to process |
+| `--kernelbench-samples` | 1000 | KernelBench samples to process |
+| `--batch-size` | 10 | Concurrent generation requests |
+| `--save-interval` | 10 | Save every N samples (single-turn) |
+| `--multi-turn` | off | Enable multi-turn refinement |
+| `--max-turns` | 4 | Max turns per sample (multi-turn) |
 
-| Value | How to Set | Where to Get It |
-|-------|-----------|-----------------|
-| `MODAL_TOKEN_ID` | `modal token set --token-id <ID>` | https://modal.com/settings |
-| `MODAL_TOKEN_SECRET` | `modal token set --token-secret <SECRET>` | https://modal.com/settings |
-| `HF_TOKEN` (optional) | Add to `.env` file | https://huggingface.co/settings/tokens |
+## Testing
+
+### Multi-Turn E2E Test
+
+Validates the full pipeline (Modal benchmark + MultiTurnQueue) without a vLLM server:
+
+```bash
+python test_multi_turn.py
+```
+
+Runs 4 turns: buggy kernel → CUDA crash → correct but slow → optimized fused kernel.
 
 ## Workflow Summary
 
-1. **Set Modal token** (one-time setup):
+1. **Set Modal token** (one-time):
    ```bash
    modal token set --token-id <ID> --token-secret <SECRET>
    ```
 
-2. **Start vLLM server** (keep this running):
+2. **Start model server** (keep running):
    ```bash
-   bash run_gpt_oss.sh
-   # OR manually start the vLLM server
+   bash serve_qwen3_235b.sh   # or run_glm45_air.sh / run_gpt_oss.sh
    ```
 
-3. **Generate traces** (in a new terminal):
+3. **Generate traces** (new terminal):
    ```bash
-   uv run --no-sync python orchestrator.py
+   python orchestrator.py --multi-turn --max-turns 4
    ```
 
-## Output
-
-The reasoning traces will be saved to `reasoning_traces.json` (or the file specified by `--output`).
-
-The orchestrator will:
-- Load PyTorch code samples from KernelBook and KernelBench
-- Send each to gpt-oss-120b for Triton kernel generation
-- Validate correctness and measure speedup on Modal H100
-- Save verified traces with reasoning, code, and benchmark results
+4. **Output** saved to `reasoning_traces.json` (or `--output` path).
 
 ## Troubleshooting
 
-### "Modal not configured" error
-Run: `modal token set --token-id <ID> --token-secret <SECRET>`
-
-### GPU memory issues
-- Reduce `--gpu-memory-utilization` (default: 0.9)
-- Reduce `--max-model-len` (default: 16384)
-- Ensure you have 2 GPUs available
-
-### vLLM server connection errors
-- Check that vLLM server is running: `curl http://localhost:8000/v1/models`
-- Verify the URL in orchestrator matches: `--vllm-url http://localhost:8000/v1`
+| Issue | Fix |
+|-------|-----|
+| "Modal not configured" | `modal token set --token-id <ID> --token-secret <SECRET>` |
+| GPU OOM | Reduce `--gpu-memory-utilization` or `--max-model-len` |
+| vLLM won't connect | Check: `curl http://localhost:8000/v1/models` |
+| Qwen3 multi-GPU errors | Ensure `VLLM_WORKER_MULTIPROC_METHOD=spawn` is set |
+| Slow Qwen3 startup | FP8 model is ~120 GB download on first run; uses safetensors fast GPU path after |

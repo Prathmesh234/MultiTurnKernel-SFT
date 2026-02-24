@@ -113,16 +113,8 @@ For each PyTorch operation, you should:
 3. Choose appropriate BLOCK_SIZE and num_warps
 4. Write the complete Triton kernel implementation
 
-Your response MUST follow this format:
-
-<think>
-[Your step-by-step reasoning about the conversion]
-- What operation is being performed?
-- What are the input/output shapes?
-- How should this be parallelized?
-- What memory access pattern should be used?
-- What BLOCK_SIZE and num_warps are optimal?
-</think>
+Think step-by-step about the conversion before writing code. Then provide the complete
+Triton implementation inside <triton>...</triton> tags:
 
 <triton>
 import torch
@@ -232,8 +224,8 @@ MULTI_TURN_ADDENDUM = """
 
 You may receive feedback on your generated kernel if it fails validation
 or is slower than PyTorch. When you receive feedback, analyze the error
-or performance issue, then generate an improved version. Always respond
-with the same <think>...</think> <triton>...</triton> format.
+or performance issue, then generate an improved version. Always provide
+the corrected code inside <triton>...</triton> tags.
 """
 
 
@@ -298,9 +290,9 @@ class TraceOrchestrator:
         Returns:
             Dict with 'content' and 'reasoning' fields, or None if failed
         """
-        # GLM-4.5-Air has thinking/reasoning enabled by default.
-        # No reasoning_effort needed — it's a binary toggle (on/off).
-        # To disable thinking, pass: extra_body={"chat_template_kwargs": {"enable_thinking": False}}
+        # Reasoning is extracted natively by vLLM's --reasoning-parser flag.
+        # The response returns reasoning_content (thinking) separately from content.
+        # To disable reasoning, pass: extra_body={"chat_template_kwargs": {"enable_thinking": False}}
         
         # Dynamically compute max_tokens to fit within the context window.
         # Estimate input tokens (~3.5 chars/token) and leave room for them.
@@ -369,33 +361,6 @@ class TraceOrchestrator:
                 idx = completion.find("import triton")
             if idx != -1:
                 return completion[idx:].strip()
-        
-        return None
-    
-    def extract_thinking(self, completion: str) -> Optional[str]:
-        """
-        Extract thinking/reasoning from model completion.
-        
-        Args:
-            completion: The full model response
-            
-        Returns:
-            The extracted thinking or None
-        """
-        import re
-        
-        # Try to find <think>...</think> block
-        think_match = re.search(r"<think>(.*?)</think>", completion, re.DOTALL)
-        if think_match:
-            return think_match.group(1).strip()
-        
-        # Fallback: everything before <triton> or first code block
-        triton_idx = completion.find("<triton>")
-        if triton_idx == -1:
-            triton_idx = completion.find("```python")
-        
-        if triton_idx > 0:
-            return completion[:triton_idx].strip()
         
         return None
     
@@ -484,9 +449,8 @@ class TraceOrchestrator:
             print(f"API returned empty content for {sample_key}")
             return None
         
-        # Step 2: Extract Triton code and thinking
+        # Step 2: Extract Triton code (reasoning is in model_reasoning via vLLM reasoning_content)
         triton_code = self.extract_triton_code(completion)
-        thinking = self.extract_thinking(completion)
         
         if not triton_code:
             print(f"Failed to extract Triton code for {sample_key}")
@@ -510,8 +474,7 @@ class TraceOrchestrator:
             "name": sample.get("name"),
             "problem_id": sample.get("problem_id"),
             "pytorch_code": pytorch_code,
-            "thinking": thinking,  # Extracted from <think> tags in completion
-            "model_reasoning": model_reasoning,  # Internal CoT from GLM-4.5-Air (reasoning_content)
+            "reasoning": model_reasoning,  # Chain-of-thought from vLLM reasoning_content
             "triton_code": triton_code,
             "full_completion": completion,
             "result": {
@@ -583,8 +546,7 @@ class TraceOrchestrator:
                         if not response or not response.get("content"):
                             item["turns_history"].append({
                                 "turn": item["turn_num"],
-                                "thinking": None,
-                                "model_reasoning": None,
+                                "reasoning": None,
                                 "triton_code": None,
                                 "full_completion": None,
                                 "result": {"correctness": False, "error": "Generation failed"},
@@ -603,7 +565,6 @@ class TraceOrchestrator:
                         reasoning = response.get("reasoning")
 
                         triton_code = self.extract_triton_code(completion)
-                        thinking = self.extract_thinking(completion)
 
                         if not triton_code:
                             result = {"correctness": False, "error": "Triton code extraction failed"}
@@ -615,8 +576,7 @@ class TraceOrchestrator:
 
                         turn_result = {
                             "turn": item["turn_num"],
-                            "thinking": thinking,
-                            "model_reasoning": reasoning,
+                            "reasoning": reasoning,
                             "triton_code": triton_code,
                             "full_completion": completion,
                             "result": result,

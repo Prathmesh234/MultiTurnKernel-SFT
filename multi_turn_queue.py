@@ -14,13 +14,13 @@ from datetime import datetime
 FEEDBACK_COMPILATION_FAILED = """Compilation/runtime error:
 {error_message}
 
-Fix and regenerate using <think>...</think> <triton>...</triton> format."""
+Fix and regenerate the corrected code inside <triton>...</triton> tags."""
 
 FEEDBACK_CORRECTNESS_FAILED = """Incorrect output: {error_message}
 
-Fix and regenerate using <think>...</think> <triton>...</triton> format."""
+Fix and regenerate the corrected code inside <triton>...</triton> tags."""
 
-FEEDBACK_NEEDS_OPTIMIZATION = """Correct but slow ({speedup:.2f}x PyTorch). Optimize and regenerate using <think>...</think> <triton>...</triton> format."""
+FEEDBACK_NEEDS_OPTIMIZATION = """Correct but slow ({speedup:.2f}x PyTorch). Optimize and regenerate the improved code inside <triton>...</triton> tags."""
 
 
 class MultiTurnQueue:

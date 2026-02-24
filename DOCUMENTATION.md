@@ -1,416 +1,234 @@
-# KernelBench Triton - Architecture Documentation
+# KernelBench Triton - Modal Benchmarking Documentation
 
-## CUDA State Safety & Process Isolation
+## Overview
 
-### Overview
+Modal app (`modal_app.py`) benchmarks Triton GPU kernels against PyTorch reference implementations on H100 GPUs. It measures correctness and performance, returning structured results with `fast_0/1/2` flags.
 
-This document explains the critical architecture decisions around process isolation and CUDA state safety in KernelBench Triton. The key insight is: **each kernel benchmark runs in a completely fresh subprocess to guarantee clean GPU state and avoid stale module pollution.**
+## Deployment
 
----
+```bash
+modal deploy modal_app.py
+```
 
-## Table of Contents
+## Functions
 
-1. [The Problem: State Pollution](#the-problem-state-pollution)
-2. [The Solution: Process Isolation with `spawn`](#the-solution-process-isolation-with-spawn)
-3. [Why Not Pool() or ThreadPoolExecutor?](#why-not-pool-or-threadpoolexecutor)
-4. [How `mp.get_context("spawn")` Works](#how-mpget_contextspawn-works)
-5. [CUDA Context Isolation](#cuda-context-isolation)
-6. [Module Cache Cleanup](#module-cache-cleanup)
-7. [Timeout & Crash Recovery](#timeout--crash-recovery)
-8. [End-to-End Example](#end-to-end-example)
+| Function | Purpose |
+|---|---|
+| `benchmark_triton_kernel` | Generic kernel benchmark with explicit `input_shapes` dict |
+| `benchmark_kernelbench` | KernelBench `nn.Module` pattern (uses `get_inputs()` / `get_init_inputs()`) |
+| `benchmark_batch` | Sequential batch of `benchmark_kernelbench` calls on the same container |
 
----
+## Calling Deployed Functions
 
-## The Problem: State Pollution
-
-### CUDA Context Inheritance (fork)
-
-If we naively used Python's default `fork()` approach:
+Use `modal.Function.from_name()` to call the deployed app from any Python script:
 
 ```python
-# Parent process
+import modal
+
+benchmark = modal.Function.from_name("kernelbench-triton", "benchmark_triton_kernel")
+
+result = benchmark.remote(
+    kernel_code=kernel_code_string,
+    reference_torch_code=reference_code_string,
+    input_shapes={"x": {"shape": [4096, 4096], "dtype": "float32"}},
+    n_correctness=5,
+    n_trials=50,
+    kernel_name="my_kernel",
+)
+```
+
+Run with the Python environment that has `modal` installed:
+
+```bash
+/opt/miniconda3/bin/python my_script.py
+```
+
+> **Note:** `modal run` only works for scripts that define a Modal app with `@app.local_entrypoint()`. For client scripts that call deployed functions, use plain `python`.
+
+## Result Schema
+
+```python
+{
+    "kernel_name": str,
+    "timestamp": str,          # ISO format
+    "correctness": bool,       # All correctness checks passed
+    "speedup": float,          # reference_time / kernel_time
+    "reference_time_ms": float,
+    "kernel_time_ms": float,
+    "fast_0": bool,            # Correct
+    "fast_1": bool,            # Correct AND faster than reference
+    "fast_2": bool,            # Correct AND >= 2x faster
+    "error": str | None,       # Error message if any
+}
+```
+
+## GPU Error Recovery Architecture
+
+### Previous approach (deprecated)
+
+The original design used `multiprocessing.get_context("spawn")` to run each kernel in a fresh subprocess with its own CUDA context. This provided isolation but added complexity.
+
+### Current approach: Modal's built-in retries
+
+We replaced subprocess isolation with Modal's infrastructure-level recovery (commit `6ebe69e`). Each `@app.function` is configured with:
+
+```python
+retries=modal.Retries(
+    max_retries=2,
+    backoff_coefficient=1.0,
+    initial_delay=1.0,
+)
+```
+
+**How it works:**
+
+1. **Fatal GPU errors** (e.g. illegal memory access): The container crashes. Modal automatically reschedules the function on a **fresh container** with a clean CUDA context.
+2. **Non-fatal GPU faults**: Caught as `RuntimeError` in our code, which calls `modal.experimental.stop_fetching_inputs()` to drain the container gracefully so no further work is routed to a poisoned GPU.
+3. **Non-GPU errors** (import failures, shape mismatches, etc.): Caught by the general `except Exception` handler and returned in the result dict without draining the container.
+
+**Why this is better than subprocess isolation:**
+
+- Simpler code — no multiprocessing, no queues, no IPC
+- Modal handles the hard parts (container lifecycle, GPU health monitoring)
+- Each `.remote()` call is already container-isolated by Modal
+- Retries land on a fresh container with guaranteed clean CUDA state
+
+### Key isolation points
+
+| Point | Isolation mechanism |
+|-------|-------------------|
+| **Between `.remote()` calls** | Each call may land on a different container |
+| **After GPU crash** | Container dies, Modal retries on fresh container |
+| **After non-fatal fault** | `stop_fetching_inputs()` drains container, future calls go elsewhere |
+| **Module cache** | `sys.modules.pop()` in `finally` block prevents stale modules within a container |
+
+## Verified Recovery Behavior (2026-02-23)
+
+Tested by running a deliberately broken kernel followed immediately by a correct kernel against the deployed app.
+
+### Test 1: Good kernel (vector add)
+
+A correct Triton element-wise add kernel on 4096x4096 float32 tensors:
+
+```python
+@triton.jit
+def _add_kernel(x_ptr, y_ptr, out_ptr, n_elements, BLOCK_SIZE: tl.constexpr):
+    pid = tl.program_id(0)
+    offsets = pid * BLOCK_SIZE + tl.arange(0, BLOCK_SIZE)
+    mask = offsets < n_elements
+    x = tl.load(x_ptr + offsets, mask=mask)
+    y = tl.load(y_ptr + offsets, mask=mask)
+    tl.store(out_ptr + offsets, x + y, mask=mask)
+```
+
+**Result:**
+```
+Kernel:      good_vector_add
+Correctness: True
+Speedup:     0.99x
+Ref time:    0.0696 ms
+Kernel time: 0.0701 ms
+fast_0:      True
+fast_1:      False
+fast_2:      False
+```
+
+Speedup ~1.0x is expected — PyTorch's `x + y` is already a highly optimized elementwise op.
+
+### Test 2: Bad kernel (out-of-bounds memory access)
+
+A deliberately broken kernel with no masking and offsets multiplied by 1,000,000:
+
+```python
+@triton.jit
+def _oob_kernel(x_ptr, out_ptr, n_elements, BLOCK_SIZE: tl.constexpr):
+    pid = tl.program_id(0)
+    offsets = pid * BLOCK_SIZE * 1000000 + tl.arange(0, BLOCK_SIZE)
+    # No mask — every load/store hits invalid memory
+    x = tl.load(x_ptr + offsets)
+    tl.store(out_ptr + offsets, x * 2.0)
+```
+
+**Result:**
+```
+Kernel:      bad_oob_kernel
+Correctness: False
+Speedup:     0.00x
+fast_0:      False
+fast_1:      False
+fast_2:      False
+ERROR:       RuntimeError: CUDA error: operation not supported on global/shared address space
+```
+
+The CUDA error was caught, the container was drained via `stop_fetching_inputs()`, and the error was returned in the result dict.
+
+### Test 3: Good kernel AFTER bad kernel (recovery test)
+
+The same correct vector-add kernel called immediately after the bad kernel:
+
+**Result:**
+```
+Kernel:      good_vector_add_after_crash
+Correctness: True
+Speedup:     0.99x
+Ref time:    0.0697 ms
+Kernel time: 0.0703 ms
+fast_0:      True
+fast_1:      False
+fast_2:      False
+```
+
+**Confirms:** A poisoned CUDA context does NOT leak into subsequent calls. Modal routed the follow-up call to a fresh container with clean GPU state.
+
+## Kernel Code Format
+
+### For `benchmark_triton_kernel`
+
+**Kernel code** must define `triton_kernel_wrapper`:
+
+```python
 import torch
-torch.cuda.init()  # Creates CUDA context X
+import triton
+import triton.language as tl
 
-# Parent forks a child
-p = mp.Process(target=benchmark_kernel)
-p.start()
+@triton.jit
+def _my_kernel(x_ptr, out_ptr, n_elements, BLOCK_SIZE: tl.constexpr):
+    pid = tl.program_id(0)
+    offsets = pid * BLOCK_SIZE + tl.arange(0, BLOCK_SIZE)
+    mask = offsets < n_elements
+    x = tl.load(x_ptr + offsets, mask=mask)
+    tl.store(out_ptr + offsets, x * 2.0, mask=mask)
+
+def triton_kernel_wrapper(x):
+    output = torch.empty_like(x)
+    n = output.numel()
+    BLOCK_SIZE = 1024
+    grid = ((n + BLOCK_SIZE - 1) // BLOCK_SIZE,)
+    _my_kernel[grid](x, output, n, BLOCK_SIZE=BLOCK_SIZE)
+    return output
 ```
 
-**What happens in the child:**
-- Child inherits the parent's **entire memory image**, including CUDA context X
-- When child imports torch and calls `.cuda()`, the GPU driver sees:
-  - "This process already has a GPU context"
-  - "Trying to initialize again???"
-- GPU state corruption, illegal memory access, process crash
-
-**Result:** One bad kernel crashes the GPU for all future benchmarks in the parent.
-
-### Module Cache Pollution (reused workers)
-
-If we used `mp.Pool()` (worker process reuse):
+**Reference code** must define `reference_impl`:
 
 ```python
-# Worker process 1, Kernel A
-triton_module = importlib.util.module_from_spec(spec)
-sys.modules["triton_module"] = triton_module  # Cached!
-spec.loader.exec_module(triton_module)
+import torch
 
-# Worker process 1, Kernel B (same process!)
-# Python sees "triton_module" already in sys.modules
-# Reuses old module instead of reloading from new file
+def reference_impl(x):
+    return x * 2.0
 ```
 
-**Result:** Stale Triton JIT cache, wrong kernel runs, incorrect benchmarks.
-
----
-
-## The Solution: Process Isolation with `spawn`
-
-We use `spawn` to create a **completely fresh Python interpreter** for each kernel:
+**Input shapes** dict:
 
 ```python
-import multiprocessing as mp
-
-# In benchmark_kernelbench() or benchmark_triton_kernel()
-ctx = mp.get_context("spawn")      # Use spawn backend
-result_queue = ctx.Queue()         # IPC channel for results
-
-p = ctx.Process(
-    target=_kernelbench_worker,    # Worker function
-    args=(triton_code, pytorch_code, n_correctness, n_trials, ...),
-    daemon=True,
-)
-
-p.start()
-p.join(timeout=300)  # 5-minute hard timeout
+input_shapes = {
+    "x": {"shape": [4096, 4096], "dtype": "float32"},
+}
 ```
 
-**Key benefits:**
-- ✅ Fresh Python interpreter (no inherited memory)
-- ✅ No pre-existing CUDA context (clean GPU state)
-- ✅ Empty `sys.modules` (no stale module cache)
-- ✅ Isolated timings (no carryover from previous kernels)
-- ✅ Hard timeout support (kill hung processes)
-- ✅ Parent survives child crashes (process boundary = safety boundary)
+### For `benchmark_kernelbench`
 
----
+**PyTorch code** must define an `nn.Module` class, `get_inputs()`, and `get_init_inputs()`:
 
-## Why Not Pool() or ThreadPoolExecutor?
-
-### ThreadPoolExecutor ❌
-
-**Problem:** Threads share the same CUDA context within a process.
-
-```python
-from concurrent.futures import ThreadPoolExecutor
-
-with ThreadPoolExecutor(max_workers=4) as executor:
-    future = executor.submit(_kernelbench_worker, triton_code, pytorch_code)
-```
-
-**Why it fails:**
-- All 4 threads share one CUDA context
-- If Thread 1's kernel corrupts GPU, Threads 2-4 are affected
-- Python's GIL limits true parallelism anyway
-- **Not suitable for untrusted/generated code**
-
-### mp.Pool() ⚠️
-
-**Problem:** Worker processes are reused between tasks.
-
-```python
-with mp.Pool(processes=4) as pool:
-    result = pool.apply_async(_kernelbench_worker, args=(triton_code,))
-```
-
-**Why it's suboptimal:**
-1. **State carryover:** Same worker process runs Kernel A, then Kernel B
-   - Triton's JIT cache persists (old kernels served)
-   - CUDA context persists (GPU memory fragmentation, state pollution)
-   - `sys.modules` still has old modules
-
-2. **Delayed respawn:** If a worker crashes:
-   - Pool respawns a replacement (adds latency)
-   - GPU context might still be corrupted during transition
-
-3. **Awkward timeout:** `result.get(timeout=300)` at task level, not process level
-
-**Better than threads, but not ideal for isolation.**
-
-### Manual mp.Process ✅
-
-**Why we chose it:**
-- **Complete isolation:** Fresh Python interpreter per kernel
-- **Clean GPU state:** No inherited CUDA context
-- **No module pollution:** Empty `sys.modules` each time
-- **Hard timeout:** `p.join(timeout=300)` + `p.kill()` if hung
-- **Parent survives crashes:** Process boundary protects container
-
----
-
-## How `mp.get_context("spawn")` Works
-
-### The Three Start Methods
-
-Python's multiprocessing supports three ways to create child processes:
-
-#### 1. fork (default on Unix, ❌ broken for CUDA)
-
-```python
-ctx = mp.get_context("fork")
-```
-
-**Mechanism:**
-- Calls `os.fork()` → duplicate entire parent process
-- Child inherits memory, file handles, **CUDA context**
-
-**Visual:**
-```
-Parent (GPU context X, sys.modules={torch, triton, ...})
-           ↓ fork()
-Child (GPU context X copy, sys.modules={torch, triton, ...})
-           ↓
-GPU driver sees two processes with same context → corruption
-```
-
-**For CUDA:** ❌ Broken — inherited context causes GPU crashes
-
----
-
-#### 2. spawn (what we use, ✅ correct for CUDA)
-
-```python
-ctx = mp.get_context("spawn")
-```
-
-**Mechanism:**
-- Starts a fresh Python interpreter (`python -c "..."`)
-- Child receives only serialized arguments (pickled)
-- No inherited memory, no inherited CUDA context
-
-**Visual:**
-```
-Parent (GPU context X, sys.modules={torch, triton, ...})
-           ↓ spawn (fresh interpreter)
-Child (empty memory, NO GPU context, sys.modules={})
-           ↓
-Child imports torch → creates fresh GPU context Y
-           ↓
-Isolated: Parent has X, Child has Y (different CUDA contexts)
-```
-
-**For CUDA:** ✅ Perfect — each process gets its own context
-
----
-
-#### 3. forkserver (Unix only, rarely needed)
-
-```python
-ctx = mp.get_context("forkserver")
-```
-
-**Mechanism:**
-- Maintains a clean "server" process
-- Server forks itself (not the parent) to create workers
-- Somewhere between fork and spawn in terms of cleanliness
-
-**For CUDA:** ⚠️ Better than fork, but spawn is still preferred
-
----
-
-### What Gets Passed to the Child?
-
-With `spawn`, **only arguments get pickled and transmitted**:
-
-```python
-# Parent
-p = ctx.Process(
-    target=_kernelbench_worker,
-    args=(triton_code, pytorch_code, n_correctness, ...)
-)
-p.start()
-
-# Child receives
-def _kernelbench_worker(triton_code, pytorch_code, n_correctness, ...):
-    # triton_code = unpickled string
-    # pytorch_code = unpickled string
-    # n_correctness = unpickled integer
-    # Everything else? Fresh and clean!
-```
-
-**Child inherits:** ✓ Arguments only
-
-**Child does NOT inherit:** ✗ GPU context, modules, memory, file handles
-
----
-
-## CUDA Context Isolation
-
-### The Execution Flow
-
-```python
-# modal_app.py: benchmark_kernelbench()
-
-ctx = mp.get_context("spawn")
-p = ctx.Process(
-    target=_kernelbench_worker,
-    args=(triton_code, pytorch_code, ...)
-)
-p.start()     # ← Spawns fresh Python interpreter
-p.join(timeout=300)
-
-# Inside child process (_kernelbench_worker):
-# 1. Fresh Python interpreter starts
-# 2. torch is NOT imported yet
-# 3. CUDA is NOT initialized yet
-
-import torch  # Load torch module
-
-# Create temp files (Triton needs real files on disk)
-with tempfile.NamedTemporaryFile(...) as f:
-    f.write(pytorch_code)
-    pytorch_file = f.name
-
-with tempfile.NamedTemporaryFile(...) as f:
-    f.write(triton_code)
-    triton_file = f.name
-
-# Dynamically load PyTorch module
-spec = importlib.util.spec_from_file_location("pytorch_module", pytorch_file)
-pytorch_module = importlib.util.module_from_spec(spec)
-sys.modules["pytorch_module"] = pytorch_module
-spec.loader.exec_module(pytorch_module)
-
-# PyTorch model instantiated
-model = ModelClass().cuda()  # ← First CUDA call creates fresh context Y
-
-# Dynamically load Triton module
-spec = importlib.util.spec_from_file_location("triton_module", triton_file)
-triton_module = importlib.util.module_from_spec(spec)
-sys.modules["triton_module"] = triton_module
-spec.loader.exec_module(triton_module)  # ← Triton JIT compiles in context Y
-
-# Benchmark runs entirely within context Y
-
-# Cleanup
-finally:
-    os.unlink(pytorch_file)
-    os.unlink(triton_file)
-    sys.modules.pop("pytorch_module", None)   # ← Module cache cleanup
-    sys.modules.pop("triton_module", None)    # ← (added in recent fix)
-
-# Child process exits → context Y destroyed
-# Parent's context X remains untouched
-```
-
-### Key Isolation Points
-
-| Point | Isolation |
-|-------|-----------|
-| **Process start** | Fresh Python interpreter |
-| **CUDA init** | `.cuda()` call creates context only in child |
-| **Triton JIT** | Compilation happens in child's context only |
-| **Module cache** | `sys.modules` is empty, populated fresh |
-| **Process exit** | Child's context Y destroyed; parent's context X unaffected |
-
----
-
-## Module Cache Cleanup
-
-### The Problem (Before Fix)
-
-```python
-# Child process, Kernel A
-sys.modules["triton_module"] = triton_module  # Cached!
-spec.loader.exec_module(triton_module)
-
-# If worker function called again in same process:
-# Child process, Kernel B (hypothetically, with Pool)
-spec.loader.exec_module(triton_module)  # Reuses cached module!
-```
-
-### The Solution (Our Fix)
-
-```python
-finally:
-    try:
-        os.unlink(pytorch_file)
-        os.unlink(triton_file)
-    except Exception:
-        pass
-
-    # NEW: Evict cached modules
-    sys.modules.pop("pytorch_module", None)
-    sys.modules.pop("triton_module", None)
-```
-
-**Why both approaches?**
-1. **With spawn (current):** Each kernel gets a fresh process, so modules are already isolated. But this is belt-and-suspenders for safety.
-2. **If we ever add process reuse:** The cleanup ensures stale modules don't persist.
-
-**Where cleanup happens:**
-- `modal_app.py:217-220` — `_generic_worker` cleanup
-- `modal_app.py:457-461` — `_kernelbench_worker` cleanup
-
----
-
-## Timeout & Crash Recovery
-
-### Hard Timeout
-
-```python
-p.start()
-p.join(timeout=300)  # 5-minute hard cap
-
-if p.is_alive():
-    p.kill()  # Force kill subprocess
-    p.join()
-    result = {
-        "kernel_name": kernel_name,
-        "error": "Timeout: kernel exceeded 300s limit",
-        "correctness": False,
-        ...
-    }
-```
-
-**Why this is safe:**
-- `p.kill()` terminates the child process
-- Child's CUDA context Y is destroyed
-- Parent's context X remains alive
-- Next `.remote()` call gets a healthy GPU
-
-**Without process isolation:** Killing a thread/worker might leave GPU in bad state.
-
-### Crash Recovery
-
-```python
-elif p.exitcode != 0:
-    # Non-zero exit = subprocess crashed
-    result = {
-        "kernel_name": kernel_name,
-        "error": f"Worker crashed (exit code {p.exitcode}) — likely CUDA illegal memory access",
-        "correctness": False,
-        ...
-    }
-```
-
-**Why this is safe:**
-- If child crashes (CUDA illegal memory access → SIGABRT = exit code -6)
-- Only child process dies
-- Child's GPU context is freed
-- Parent Modal container remains alive
-- Next kernel runs on clean GPU
-
-**Without process isolation:** One crash would corrupt the container's GPU permanently.
-
----
-
-## End-to-End Example
-
-Let's walk through benchmarking a simple kernel:
-
-### PyTorch Reference Code
 ```python
 import torch
 import torch.nn as nn
@@ -424,148 +242,137 @@ class Model(nn.Module):
         return self.linear(x)
 
 def get_inputs():
-    return torch.randn(32, 256, dtype=torch.float32)
+    return [torch.randn(32, 256, dtype=torch.float32)]
 
 def get_init_inputs():
     return [256]
 ```
 
-### Triton Kernel Code
+**Triton code** must define `triton_kernel_wrapper` that accepts the same inputs (and optionally model weights/biases — the benchmarker auto-fills these based on parameter count).
+
+## Trace Generation Pipeline
+
+The orchestrator (`orchestrator.py`) drives end-to-end trace generation: model generates Triton kernels from PyTorch code, kernels are validated on Modal H100s, and results are saved as JSON traces.
+
+### Supported Models
+
+| Model | Params (total / active) | GPUs | Run Script | Reasoning Parser |
+|-------|------------------------|------|------------|-----------------|
+| GLM-4.5-Air | 106B / 12B | 4x H100 (BF16) | `run_glm45_air.sh` | `glm45` |
+| GPT-OSS-120B | 120B | 2x H100 | `run_gpt_oss.sh` | `openai_gptoss` |
+| Qwen3-235B-A22B | 235B / 22B | 8x H100 (FP8) | `serve_qwen3_235b.sh` | `qwen3` |
+
+### Running the Pipeline
+
+**Step 1: Start a model server** (keep running in its terminal):
+
+```bash
+bash run_glm45_air.sh        # GLM-4.5-Air (4x H100)
+bash run_gpt_oss.sh           # GPT-OSS-120B (2x H100)
+bash serve_qwen3_235b.sh      # Qwen3-235B (8x H100, FP8)
+```
+
+**Step 2: Generate traces** (new terminal):
+
+```bash
+# Single-turn — one generation attempt per sample
+python orchestrator.py --output reasoning_traces.json
+
+# Multi-turn — iterative refinement with feedback (up to 4 turns)
+python orchestrator.py --multi-turn --max-turns 4 --output reasoning_traces_multiturn.json
+```
+
+### Orchestrator CLI Flags
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--vllm-url` | `http://localhost:8000/v1` | vLLM server URL |
+| `--output` | `reasoning_traces.json` | Output JSON file |
+| `--kernelbook-samples` | 1500 | KernelBook samples to process |
+| `--kernelbench-samples` | 1000 | KernelBench samples to process |
+| `--batch-size` | 10 | Concurrent generation requests |
+| `--save-interval` | 10 | Save every N samples (single-turn) |
+| `--multi-turn` | off | Enable multi-turn iterative refinement |
+| `--max-turns` | 4 | Max turns per sample (multi-turn only) |
+
+### Reasoning Extraction
+
+Reasoning/thinking is extracted **natively by vLLM** via the `--reasoning-parser` flag on the server. Each model has a dedicated parser (`glm45`, `qwen3`, `openai_gptoss`) that separates the model's chain-of-thought from the final output at the API level.
+
+The vLLM `/v1/chat/completions` response returns:
+
 ```python
-import torch
-import triton
-import triton.language as tl
+response = await session.post(url, json=payload)
+data = await response.json()
+message = data["choices"][0]["message"]
 
-@triton.jit
-def matmul_kernel(x_ptr, w_ptr, out_ptr, M, N, K, ...):
-    pid_m = tl.program_id(0)
-    # ... kernel logic ...
-
-def triton_kernel_wrapper(x, weight, bias=None):
-    out = torch.empty(...)
-    grid = (...)
-    matmul_kernel[grid](...)
-    return out
+content = message["content"]                    # Final output (Triton code in <triton> tags)
+reasoning = message.get("reasoning_content")    # Chain-of-thought (extracted by vLLM parser)
 ```
 
-### Execution Flow
+- **`content`**: The model's final response — contains `<triton>...</triton>` code blocks
+- **`reasoning_content`**: The model's thinking/reasoning, extracted automatically by the vLLM reasoning parser
 
-#### Step 1: Parent spawns subprocess
+No manual `<think>` tag parsing is needed. The system prompt instructs the model to think step-by-step (the model's native reasoning handles this), and to provide code inside `<triton>...</triton>` tags. The orchestrator only parses `<triton>` tags from `content`.
+
+### Multi-Turn Flow
+
+When `--multi-turn` is enabled, failed or slow kernels get feedback and retry:
+
 ```
-benchmark_kernelbench(triton_code=..., pytorch_code=...)
-  ↓
-ctx = mp.get_context("spawn")
-p = ctx.Process(target=_kernelbench_worker, args=(...))
-p.start()  ← Fresh Python interpreter starts
-```
-
-#### Step 2: Child process initializes
-```
-[Child Process - Fresh Interpreter]
-
-import torch  # First torch import in this process
-# CUDA not initialized yet!
-
-with tempfile.NamedTemporaryFile(...) as f:
-    f.write(pytorch_code)
-    pytorch_file = "/tmp/tmp123_pytorch.py"
-
-with tempfile.NamedTemporaryFile(...) as f:
-    f.write(triton_code)
-    triton_file = "/tmp/tmp456_triton.py"
+Turn 1: Model generates kernel → benchmark on Modal → correctness=False
+        → Feedback: "Incorrect output: Output mismatch..."
+Turn 2: Model generates fixed kernel → benchmark → correctness=True, speedup=0.8x
+        → Feedback: "Correct but slow (0.80x). Optimize..."
+Turn 3: Model generates optimized kernel → benchmark → correctness=True, speedup=1.5x
+        → Stop: success_fast
 ```
 
-#### Step 3: Load PyTorch module
-```
-spec = importlib.util.spec_from_file_location("pytorch_module", pytorch_file)
-pytorch_module = importlib.util.module_from_spec(spec)
-sys.modules["pytorch_module"] = pytorch_module
-spec.loader.exec_module(pytorch_module)
+The `MultiTurnQueue` (in `multi_turn_queue.py`) is a passive proxy that manages:
+- **Deque**: FIFO queue of items to process
+- **Turn counting**: Tracks which turn each item is on
+- **Feedback construction**: Builds appropriate feedback strings based on results
+- **Trace finalization**: Builds the final trace dict with all turns
 
-# Now pytorch_module has:
-#   - Model class
-#   - get_inputs() function
-#   - get_init_inputs() function
+Stop conditions: `correctness=True AND speedup >= 1.0` → `success_fast`, or `turn >= max_turns` → `max_turns_reached`.
 
-model = Model(256).cuda()  # ← Creates GPU context Y in child
-```
+See [`multi_turn.md`](./multi_turn.md) for the full architecture spec.
 
-#### Step 4: Load Triton module
-```
-spec = importlib.util.spec_from_file_location("triton_module", triton_file)
-triton_module = importlib.util.module_from_spec(spec)
-sys.modules["triton_module"] = triton_module
-spec.loader.exec_module(triton_module)  # ← Triton JIT compiles here in context Y
+### End-to-End Test
 
-triton_kernel_wrapper = triton_module.triton_kernel_wrapper
+`test_multi_turn.py` validates the full multi-turn pipeline without a live vLLM server:
+
+```bash
+python test_multi_turn.py
 ```
 
-#### Step 5: Run benchmark
+Runs 4 turns against the deployed Modal function:
+
+| Turn | Kernel | Result |
+|------|--------|--------|
+| 1 | Buggy (`x * y` instead of `relu(x + y)`) | `correctness=False` |
+| 2 | Illegal memory access (no bounds mask) | CUDA runtime error |
+| 3 | Correct but slow (two separate kernels) | `correctness=True`, `speedup < 1.0` |
+| 4 | Optimized fused add+relu (single pass) | `correctness=True`, `speedup > 1.0` |
+
+### Qwen3-235B Server Configuration
+
+The `serve_qwen3_235b.sh` script configures vLLM for Qwen3 on 8x H100 NVLink:
+
+```bash
+# Environment variables
+export VLLM_USE_V1=1                        # v1 async engine
+export SAFETENSORS_FAST_GPU=1               # Fast GPU-side deserialization
+export VLLM_WORKER_MULTIPROC_METHOD=spawn   # Required for multi-GPU
+
+# Key vLLM flags
+--tensor-parallel-size 8          # Shard across all 8 H100s
+--enable-expert-parallel          # Distribute MoE experts across TP ranks
+--max-model-len 131072            # Full 128K context window
+--gpu-memory-utilization 0.92     # Higher util since FP8 leaves headroom
+--max-num-seqs 64                 # Max concurrent sequences
+--swap-space 16                   # 16 GB CPU swap for KV cache overflow
+--reasoning-parser qwen3          # Native Qwen3 parser (extracts reasoning_content)
+--enable-reasoning                # Enable reasoning output
+--trust-remote-code               # Required for Qwen3 architecture
 ```
-for i in range(n_correctness):
-    inputs = get_inputs()  # Fresh random tensors
-    cuda_inputs = [x.cuda() for x in inputs]  # All in context Y
-
-    ref_output = model(*cuda_inputs)
-    kernel_output = _call_wrapper(cuda_inputs)
-
-    assert torch.allclose(ref_output, kernel_output)
-    print("✓ Correct")
-
-# Performance phase
-for _ in range(n_trials):
-    kernel_output = _call_wrapper(cuda_inputs)
-
-print(f"Speedup: {reference_time / kernel_time:.2f}x")
-```
-
-#### Step 6: Cleanup
-```
-finally:
-    os.unlink(pytorch_file)  # Delete /tmp/tmp123_pytorch.py
-    os.unlink(triton_file)   # Delete /tmp/tmp456_triton.py
-    sys.modules.pop("pytorch_module", None)
-    sys.modules.pop("triton_module", None)
-
-result_queue.put(result)
-# Child process exits → GPU context Y destroyed
-```
-
-#### Step 7: Parent receives result
-```
-[Parent Process - Still intact]
-
-p.join()  # Wait for child to finish
-result = result_queue.get_nowait()  # Grab result dict
-
-# Save to disk
-with open(f"/results/{result_id}.json", "w") as f:
-    json.dump(result, f)
-
-volume.commit()
-return result
-```
-
-#### Step 8: Next kernel runs
-```
-# Parent still has GPU available and healthy
-# Next kernel spawns a fresh child (Step 1 repeats)
-p = ctx.Process(target=_kernelbench_worker, args=(...))
-p.start()  ← Another fresh interpreter
-```
-
----
-
-## Summary
-
-| Aspect | How We Handle It |
-|--------|-----------------|
-| **CUDA context isolation** | `spawn` creates fresh interpreter, no inherited GPU context |
-| **Module pollution** | Fresh `sys.modules` per kernel + explicit cleanup |
-| **Process reuse** | Each kernel gets a new process (no state carryover) |
-| **Crash handling** | Process crash doesn't affect parent; next kernel runs on clean GPU |
-| **Timeout** | `p.join(timeout=300)` + `p.kill()` for hung kernels |
-| **Result passing** | Queue-based IPC (`result_queue.put()` / `.get()`) |
-| **Triton JIT cache** | Fresh cache per process (loaded from file each time) |
-
-This architecture ensures **robustness and correctness** even when benchmarking untrusted/generated kernel code.
