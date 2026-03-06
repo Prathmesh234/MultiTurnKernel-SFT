@@ -23,5 +23,9 @@ Thumbs.db
 reasoning_traces.json
 test_*.json
 
+# Metrics — raw runtime data (large, changes every poll)
+# Only prometheus_compact.json (trimmed) is committed
+metrics/prometheus.json
+
 # uv
 .venv/
