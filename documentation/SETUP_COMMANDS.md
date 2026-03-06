@@ -125,7 +125,6 @@ uv run --no-sync vllm serve Qwen/Qwen3-235B-A22B-Instruct-2507-FP8 \
     --gpu-memory-utilization 0.92 \
     --max-num-seqs 64 \
     --swap-space 16 \
-    --enable-reasoning \
     --reasoning-parser qwen3 \
     --trust-remote-code \
     --enable-prefix-caching \

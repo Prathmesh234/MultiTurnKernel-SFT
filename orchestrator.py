@@ -28,7 +28,7 @@ from utilities import pre_validate_triton_code
 
 # Configuration
 VLLM_BASE_URL = "http://localhost:8000/v1"
-MODEL_NAME = "Qwen/Qwen3-235B-A22B-Instruct-2507-FP8"
+MODEL_NAME = "Qwen/Qwen3-235B-A22B-Thinking-2507-FP8"
 OUTPUT_FILE = "reasoning_traces.json"
 OUTPUT_FILE_MULTITURN = "reasoning_traces_qwen3_multiturn.json"
 MAX_MODEL_LEN = 131072  # Must match --max-model-len on vLLM server (Qwen3-235B = 131072)
@@ -99,11 +99,11 @@ SYSTEM_PROMPT = """You are an expert GPU kernel engineer. Your task is to conver
 
 For each PyTorch operation, you should:
 1. Analyze the operation and memory access patterns
-2. Think step-by-step about how to parallelize it
+2. Reason through how to parallelize it
 3. Choose appropriate BLOCK_SIZE and num_warps (num_warps controls thread parallelism per block, typically 4 or 8)
 4. Write the complete Triton kernel implementation
 
-Think step-by-step about the conversion before writing code. Then provide the complete
+Reason through the conversion before writing code. Then provide the complete
 Triton implementation inside <triton>...</triton> tags:
 
 <triton>
@@ -304,20 +304,31 @@ class TraceOrchestrator:
             "messages": messages,
             "max_tokens": max_tokens,
             "temperature": TEMPERATURE,
+            "chat_template_kwargs": {"enable_thinking": True},  # Explicitly enable Qwen3 reasoning/thinking mode
         }
         
         try:
             async with session.post(
                 f"{self.vllm_base_url}/chat/completions",
                 json=payload,
-                timeout=aiohttp.ClientTimeout(total=300),
+                timeout=aiohttp.ClientTimeout(total=900),  # 15 min — thinking model generates many tokens
             ) as response:
                 if response.status == 200:
                     data = await response.json()
                     message = data["choices"][0]["message"]
+                    raw_content = message.get("content") or ""
+
+                    # vLLM 0.16.0 strips <think> but leaves </think> in content and
+                    # does not populate the reasoning field. Split manually.
+                    reasoning = message.get("reasoning") or message.get("reasoning_content")
+                    if not reasoning and "</think>" in raw_content:
+                        parts = raw_content.split("</think>", 1)
+                        reasoning = parts[0].strip()
+                        raw_content = parts[1].strip()
+
                     return {
-                        "content": message.get("content"),
-                        "reasoning": message.get("reasoning_content"),  # vLLM-specific field
+                        "content": raw_content,
+                        "reasoning": reasoning,
                         "usage": data.get("usage")
                     }
                 else:
@@ -325,7 +336,7 @@ class TraceOrchestrator:
                     print(f"API error: {response.status} - {error}")
                     return None
         except Exception as e:
-            print(f"Request failed: {e}")
+            print(f"Request failed: {type(e).__name__}: {e}")
             return None
     
     def extract_triton_code(self, completion: str) -> Optional[str]:
@@ -504,7 +515,7 @@ class TraceOrchestrator:
         with open(failed_path, "w") as f:
             json.dump(failed_tasks, f, indent=2, default=str)
 
-    async def run_multi_turn(self, batch_size: int = 5, max_turns: int = 4):
+    async def run_multi_turn(self, batch_size: int = 4, max_turns: int = 4):
         """
         Run multi-turn iterative refinement.
 
@@ -712,7 +723,7 @@ def main():
     parser.add_argument("--output", default=OUTPUT_FILE, help="Output JSON file")
     parser.add_argument("--kernelbook-samples", type=int, default=1500)
     parser.add_argument("--kernelbench-samples", type=int, default=1000)
-    parser.add_argument("--batch-size", type=int, default=10)
+    parser.add_argument("--batch-size", type=int, default=4)
     parser.add_argument("--save-interval", type=int, default=10)
     parser.add_argument("--multi-turn", action="store_true", help="Enable multi-turn iterative refinement")
     parser.add_argument("--max-turns", type=int, default=4, help="Max turns per sample in multi-turn mode")

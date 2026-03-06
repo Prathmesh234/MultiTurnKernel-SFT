@@ -1,0 +1,2122 @@
+[
+  {
+    "timestamp": "2026-03-06T02:33:36.334755+00:00",
+    "unix_ts": 1772764416.334755,
+    "poll_index": 61,
+    "metrics": {
+      "python_gc_objects_collected_total": {
+        "generation=\"0\"": 13842.0,
+        "generation=\"1\"": 1799.0,
+        "generation=\"2\"": 505.0
+      },
+      "python_gc_objects_uncollectable_total": {
+        "generation=\"0\"": 0.0,
+        "generation=\"1\"": 0.0,
+        "generation=\"2\"": 0.0
+      },
+      "python_gc_collections_total": {
+        "generation=\"0\"": 2067.0,
+        "generation=\"1\"": 188.0,
+        "generation=\"2\"": 12.0
+      },
+      "python_info": {
+        "implementation=\"CPython\",major=\"3\",minor=\"10\",patchlevel=\"12\",version=\"3.10.12\"": 1.0
+      },
+      "process_virtual_memory_bytes": 35788021760.0,
+      "process_resident_memory_bytes": 1253752832.0,
+      "process_start_time_seconds": 1772760027.04,
+      "process_cpu_seconds_total": 46.13,
+      "process_open_fds": 72.0,
+      "process_max_fds": 1048576.0,
+      "vllm:num_requests_running": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 4.0
+      },
+      "vllm:num_requests_waiting": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0
+      },
+      "vllm:engine_sleep_state": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\",sleep_state=\"awake\"": 1.0,
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\",sleep_state=\"weights_offloaded\"": 0.0,
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\",sleep_state=\"discard_all\"": 0.0
+      },
+      "vllm:kv_cache_usage_perc": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.014087105267571176
+      },
+      "vllm:prefix_cache_queries_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 140810.0
+      },
+      "vllm:prefix_cache_hits_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 111072.0
+      },
+      "vllm:external_prefix_cache_queries_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0
+      },
+      "vllm:external_prefix_cache_hits_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0
+      },
+      "vllm:mm_cache_queries_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0
+      },
+      "vllm:mm_cache_hits_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0
+      },
+      "vllm:num_preemptions_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0
+      },
+      "vllm:prompt_tokens_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 140810.0
+      },
+      "vllm:prompt_tokens_by_source_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\",source=\"local_compute\"": 29738.0,
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\",source=\"local_cache_hit\"": 111073.0,
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\",source=\"external_kv_transfer\"": 0.0
+      },
+      "vllm:prompt_tokens_cached_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 111072.0
+      },
+      "vllm:prompt_tokens_recomputed_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 1.0
+      },
+      "vllm:generation_tokens_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 319048.0
+      },
+      "vllm:request_success_total": {
+        "engine=\"0\",finished_reason=\"stop\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 22.0,
+        "engine=\"0\",finished_reason=\"length\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 3.0,
+        "engine=\"0\",finished_reason=\"abort\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0,
+        "engine=\"0\",finished_reason=\"error\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0
+      },
+      "vllm:request_prompt_tokens_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_prompt_tokens_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 76220.0
+      },
+      "vllm:request_generation_tokens_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_generation_tokens_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 178853.0
+      },
+      "vllm:iteration_tokens_total_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 110214.0
+      },
+      "vllm:iteration_tokens_total_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 459858.0
+      },
+      "vllm:request_max_num_generation_tokens_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_max_num_generation_tokens_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 178853.0
+      },
+      "vllm:request_params_n_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_params_n_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_params_max_tokens_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_params_max_tokens_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 684544.0
+      },
+      "vllm:time_to_first_token_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 49.0
+      },
+      "vllm:time_to_first_token_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 19.022518396377563
+      },
+      "vllm:inter_token_latency_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 318999.0
+      },
+      "vllm:inter_token_latency_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 10444.884753078222
+      },
+      "vllm:request_time_per_output_token_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_time_per_output_token_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.7431340197704096
+      },
+      "vllm:e2e_request_latency_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:e2e_request_latency_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 5580.52157664299
+      },
+      "vllm:request_queue_time_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_queue_time_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0003665238618850708
+      },
+      "vllm:request_inference_time_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_inference_time_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 5578.540463272482
+      },
+      "vllm:request_prefill_time_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_prefill_time_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 3.401273913681507
+      },
+      "vllm:request_decode_time_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_decode_time_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 5575.139189358801
+      },
+      "vllm:request_prefill_kv_computed_tokens_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_prefill_kv_computed_tokens_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 15724.0
+      },
+      "vllm:cache_config_info": {
+        "block_size=\"16\",cache_dtype=\"auto\",calculate_kv_scales=\"False\",cpu_kvcache_space_bytes=\"None\",cpu_offload_gb=\"0.0\",enable_prefix_caching=\"True\",engine=\"0\",gpu_memory_utilization=\"0.92\",is_attention_free=\"False\",kv_cache_memory_bytes=\"None\",kv_offloading_backend=\"native\",kv_offloading_size=\"None\",kv_sharing_fast_prefill=\"False\",mamba_block_size=\"None\",mamba_cache_dtype=\"auto\",mamba_cache_mode=\"none\",mamba_page_size_padded=\"None\",mamba_ssm_cache_dtype=\"auto\",num_cpu_blocks=\"None\",num_gpu_blocks=\"59630\",num_gpu_blocks_override=\"None\",prefix_caching_hash_algo=\"sha256\",sliding_window=\"None\",swap_space=\"16.0\"": 1.0
+      },
+      "http_requests_total": {
+        "handler=\"/v1/models\",method=\"GET\",status=\"2xx\"": 1.0,
+        "handler=\"/v1/chat/completions\",method=\"POST\",status=\"2xx\"": 45.0
+      },
+      "http_request_size_bytes_count": {
+        "handler=\"/v1/models\"": 1.0,
+        "handler=\"/v1/chat/completions\"": 45.0
+      },
+      "http_request_size_bytes_sum": {
+        "handler=\"/v1/models\"": 0.0,
+        "handler=\"/v1/chat/completions\"": 480772.0
+      },
+      "http_response_size_bytes_count": {
+        "handler=\"/v1/models\"": 1.0,
+        "handler=\"/v1/chat/completions\"": 45.0
+      },
+      "http_response_size_bytes_sum": {
+        "handler=\"/v1/models\"": 512.0,
+        "handler=\"/v1/chat/completions\"": 711698.0
+      },
+      "http_request_duration_highr_seconds_count": 46.0,
+      "http_request_duration_highr_seconds_sum": 10346.059437472373,
+      "http_request_duration_seconds_count": {
+        "handler=\"/v1/models\",method=\"GET\"": 1.0,
+        "handler=\"/v1/chat/completions\",method=\"POST\"": 45.0
+      },
+      "http_request_duration_seconds_sum": {
+        "handler=\"/v1/models\",method=\"GET\"": 0.0013417638838291168,
+        "handler=\"/v1/chat/completions\",method=\"POST\"": 10346.05809570849
+      }
+    }
+  },
+  {
+    "timestamp": "2026-03-06T02:33:46.341971+00:00",
+    "unix_ts": 1772764426.341971,
+    "poll_index": 62,
+    "metrics": {
+      "python_gc_objects_collected_total": {
+        "generation=\"0\"": 13842.0,
+        "generation=\"1\"": 1799.0,
+        "generation=\"2\"": 505.0
+      },
+      "python_gc_objects_uncollectable_total": {
+        "generation=\"0\"": 0.0,
+        "generation=\"1\"": 0.0,
+        "generation=\"2\"": 0.0
+      },
+      "python_gc_collections_total": {
+        "generation=\"0\"": 2067.0,
+        "generation=\"1\"": 188.0,
+        "generation=\"2\"": 12.0
+      },
+      "python_info": {
+        "implementation=\"CPython\",major=\"3\",minor=\"10\",patchlevel=\"12\",version=\"3.10.12\"": 1.0
+      },
+      "process_virtual_memory_bytes": 35788021760.0,
+      "process_resident_memory_bytes": 1253752832.0,
+      "process_start_time_seconds": 1772760027.04,
+      "process_cpu_seconds_total": 46.18,
+      "process_open_fds": 72.0,
+      "process_max_fds": 1048576.0,
+      "vllm:num_requests_running": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 4.0
+      },
+      "vllm:num_requests_waiting": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0
+      },
+      "vllm:engine_sleep_state": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\",sleep_state=\"awake\"": 1.0,
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\",sleep_state=\"weights_offloaded\"": 0.0,
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\",sleep_state=\"discard_all\"": 0.0
+      },
+      "vllm:kv_cache_usage_perc": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.015428734340673156
+      },
+      "vllm:prefix_cache_queries_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 140810.0
+      },
+      "vllm:prefix_cache_hits_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 111072.0
+      },
+      "vllm:external_prefix_cache_queries_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0
+      },
+      "vllm:external_prefix_cache_hits_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0
+      },
+      "vllm:mm_cache_queries_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0
+      },
+      "vllm:mm_cache_hits_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0
+      },
+      "vllm:num_preemptions_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0
+      },
+      "vllm:prompt_tokens_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 140810.0
+      },
+      "vllm:prompt_tokens_by_source_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\",source=\"local_compute\"": 29738.0,
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\",source=\"local_cache_hit\"": 111073.0,
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\",source=\"external_kv_transfer\"": 0.0
+      },
+      "vllm:prompt_tokens_cached_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 111072.0
+      },
+      "vllm:prompt_tokens_recomputed_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 1.0
+      },
+      "vllm:generation_tokens_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 320336.0
+      },
+      "vllm:request_success_total": {
+        "engine=\"0\",finished_reason=\"stop\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 22.0,
+        "engine=\"0\",finished_reason=\"length\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 3.0,
+        "engine=\"0\",finished_reason=\"abort\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0,
+        "engine=\"0\",finished_reason=\"error\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0
+      },
+      "vllm:request_prompt_tokens_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_prompt_tokens_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 76220.0
+      },
+      "vllm:request_generation_tokens_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_generation_tokens_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 178853.0
+      },
+      "vllm:iteration_tokens_total_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 110536.0
+      },
+      "vllm:iteration_tokens_total_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 461146.0
+      },
+      "vllm:request_max_num_generation_tokens_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_max_num_generation_tokens_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 178853.0
+      },
+      "vllm:request_params_n_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_params_n_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_params_max_tokens_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_params_max_tokens_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 684544.0
+      },
+      "vllm:time_to_first_token_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 49.0
+      },
+      "vllm:time_to_first_token_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 19.022518396377563
+      },
+      "vllm:inter_token_latency_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 320287.0
+      },
+      "vllm:inter_token_latency_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 10484.41762368381
+      },
+      "vllm:request_time_per_output_token_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_time_per_output_token_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.7431340197704096
+      },
+      "vllm:e2e_request_latency_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:e2e_request_latency_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 5580.52157664299
+      },
+      "vllm:request_queue_time_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_queue_time_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0003665238618850708
+      },
+      "vllm:request_inference_time_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_inference_time_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 5578.540463272482
+      },
+      "vllm:request_prefill_time_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_prefill_time_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 3.401273913681507
+      },
+      "vllm:request_decode_time_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_decode_time_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 5575.139189358801
+      },
+      "vllm:request_prefill_kv_computed_tokens_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_prefill_kv_computed_tokens_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 15724.0
+      },
+      "vllm:cache_config_info": {
+        "block_size=\"16\",cache_dtype=\"auto\",calculate_kv_scales=\"False\",cpu_kvcache_space_bytes=\"None\",cpu_offload_gb=\"0.0\",enable_prefix_caching=\"True\",engine=\"0\",gpu_memory_utilization=\"0.92\",is_attention_free=\"False\",kv_cache_memory_bytes=\"None\",kv_offloading_backend=\"native\",kv_offloading_size=\"None\",kv_sharing_fast_prefill=\"False\",mamba_block_size=\"None\",mamba_cache_dtype=\"auto\",mamba_cache_mode=\"none\",mamba_page_size_padded=\"None\",mamba_ssm_cache_dtype=\"auto\",num_cpu_blocks=\"None\",num_gpu_blocks=\"59630\",num_gpu_blocks_override=\"None\",prefix_caching_hash_algo=\"sha256\",sliding_window=\"None\",swap_space=\"16.0\"": 1.0
+      },
+      "http_requests_total": {
+        "handler=\"/v1/models\",method=\"GET\",status=\"2xx\"": 1.0,
+        "handler=\"/v1/chat/completions\",method=\"POST\",status=\"2xx\"": 45.0
+      },
+      "http_request_size_bytes_count": {
+        "handler=\"/v1/models\"": 1.0,
+        "handler=\"/v1/chat/completions\"": 45.0
+      },
+      "http_request_size_bytes_sum": {
+        "handler=\"/v1/models\"": 0.0,
+        "handler=\"/v1/chat/completions\"": 480772.0
+      },
+      "http_response_size_bytes_count": {
+        "handler=\"/v1/models\"": 1.0,
+        "handler=\"/v1/chat/completions\"": 45.0
+      },
+      "http_response_size_bytes_sum": {
+        "handler=\"/v1/models\"": 512.0,
+        "handler=\"/v1/chat/completions\"": 711698.0
+      },
+      "http_request_duration_highr_seconds_count": 46.0,
+      "http_request_duration_highr_seconds_sum": 10346.059437472373,
+      "http_request_duration_seconds_count": {
+        "handler=\"/v1/models\",method=\"GET\"": 1.0,
+        "handler=\"/v1/chat/completions\",method=\"POST\"": 45.0
+      },
+      "http_request_duration_seconds_sum": {
+        "handler=\"/v1/models\",method=\"GET\"": 0.0013417638838291168,
+        "handler=\"/v1/chat/completions\",method=\"POST\"": 10346.05809570849
+      }
+    }
+  },
+  {
+    "timestamp": "2026-03-06T02:33:56.349599+00:00",
+    "unix_ts": 1772764436.349599,
+    "poll_index": 63,
+    "metrics": {
+      "python_gc_objects_collected_total": {
+        "generation=\"0\"": 13842.0,
+        "generation=\"1\"": 1799.0,
+        "generation=\"2\"": 505.0
+      },
+      "python_gc_objects_uncollectable_total": {
+        "generation=\"0\"": 0.0,
+        "generation=\"1\"": 0.0,
+        "generation=\"2\"": 0.0
+      },
+      "python_gc_collections_total": {
+        "generation=\"0\"": 2067.0,
+        "generation=\"1\"": 188.0,
+        "generation=\"2\"": 12.0
+      },
+      "python_info": {
+        "implementation=\"CPython\",major=\"3\",minor=\"10\",patchlevel=\"12\",version=\"3.10.12\"": 1.0
+      },
+      "process_virtual_memory_bytes": 35788021760.0,
+      "process_resident_memory_bytes": 1253752832.0,
+      "process_start_time_seconds": 1772760027.04,
+      "process_cpu_seconds_total": 46.24,
+      "process_open_fds": 72.0,
+      "process_max_fds": 1048576.0,
+      "vllm:num_requests_running": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 4.0
+      },
+      "vllm:num_requests_waiting": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0
+      },
+      "vllm:engine_sleep_state": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\",sleep_state=\"awake\"": 1.0,
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\",sleep_state=\"weights_offloaded\"": 0.0,
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\",sleep_state=\"discard_all\"": 0.0
+      },
+      "vllm:kv_cache_usage_perc": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.01683744486743033
+      },
+      "vllm:prefix_cache_queries_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 140810.0
+      },
+      "vllm:prefix_cache_hits_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 111072.0
+      },
+      "vllm:external_prefix_cache_queries_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0
+      },
+      "vllm:external_prefix_cache_hits_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0
+      },
+      "vllm:mm_cache_queries_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0
+      },
+      "vllm:mm_cache_hits_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0
+      },
+      "vllm:num_preemptions_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0
+      },
+      "vllm:prompt_tokens_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 140810.0
+      },
+      "vllm:prompt_tokens_by_source_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\",source=\"local_compute\"": 29738.0,
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\",source=\"local_cache_hit\"": 111073.0,
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\",source=\"external_kv_transfer\"": 0.0
+      },
+      "vllm:prompt_tokens_cached_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 111072.0
+      },
+      "vllm:prompt_tokens_recomputed_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 1.0
+      },
+      "vllm:generation_tokens_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 321680.0
+      },
+      "vllm:request_success_total": {
+        "engine=\"0\",finished_reason=\"stop\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 22.0,
+        "engine=\"0\",finished_reason=\"length\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 3.0,
+        "engine=\"0\",finished_reason=\"abort\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0,
+        "engine=\"0\",finished_reason=\"error\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0
+      },
+      "vllm:request_prompt_tokens_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_prompt_tokens_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 76220.0
+      },
+      "vllm:request_generation_tokens_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_generation_tokens_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 178853.0
+      },
+      "vllm:iteration_tokens_total_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 110872.0
+      },
+      "vllm:iteration_tokens_total_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 462490.0
+      },
+      "vllm:request_max_num_generation_tokens_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_max_num_generation_tokens_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 178853.0
+      },
+      "vllm:request_params_n_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_params_n_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_params_max_tokens_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_params_max_tokens_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 684544.0
+      },
+      "vllm:time_to_first_token_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 49.0
+      },
+      "vllm:time_to_first_token_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 19.022518396377563
+      },
+      "vllm:inter_token_latency_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 321631.0
+      },
+      "vllm:inter_token_latency_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 10524.853723704815
+      },
+      "vllm:request_time_per_output_token_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_time_per_output_token_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.7431340197704096
+      },
+      "vllm:e2e_request_latency_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:e2e_request_latency_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 5580.52157664299
+      },
+      "vllm:request_queue_time_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_queue_time_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0003665238618850708
+      },
+      "vllm:request_inference_time_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_inference_time_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 5578.540463272482
+      },
+      "vllm:request_prefill_time_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_prefill_time_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 3.401273913681507
+      },
+      "vllm:request_decode_time_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_decode_time_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 5575.139189358801
+      },
+      "vllm:request_prefill_kv_computed_tokens_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_prefill_kv_computed_tokens_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 15724.0
+      },
+      "vllm:cache_config_info": {
+        "block_size=\"16\",cache_dtype=\"auto\",calculate_kv_scales=\"False\",cpu_kvcache_space_bytes=\"None\",cpu_offload_gb=\"0.0\",enable_prefix_caching=\"True\",engine=\"0\",gpu_memory_utilization=\"0.92\",is_attention_free=\"False\",kv_cache_memory_bytes=\"None\",kv_offloading_backend=\"native\",kv_offloading_size=\"None\",kv_sharing_fast_prefill=\"False\",mamba_block_size=\"None\",mamba_cache_dtype=\"auto\",mamba_cache_mode=\"none\",mamba_page_size_padded=\"None\",mamba_ssm_cache_dtype=\"auto\",num_cpu_blocks=\"None\",num_gpu_blocks=\"59630\",num_gpu_blocks_override=\"None\",prefix_caching_hash_algo=\"sha256\",sliding_window=\"None\",swap_space=\"16.0\"": 1.0
+      },
+      "http_requests_total": {
+        "handler=\"/v1/models\",method=\"GET\",status=\"2xx\"": 1.0,
+        "handler=\"/v1/chat/completions\",method=\"POST\",status=\"2xx\"": 45.0
+      },
+      "http_request_size_bytes_count": {
+        "handler=\"/v1/models\"": 1.0,
+        "handler=\"/v1/chat/completions\"": 45.0
+      },
+      "http_request_size_bytes_sum": {
+        "handler=\"/v1/models\"": 0.0,
+        "handler=\"/v1/chat/completions\"": 480772.0
+      },
+      "http_response_size_bytes_count": {
+        "handler=\"/v1/models\"": 1.0,
+        "handler=\"/v1/chat/completions\"": 45.0
+      },
+      "http_response_size_bytes_sum": {
+        "handler=\"/v1/models\"": 512.0,
+        "handler=\"/v1/chat/completions\"": 711698.0
+      },
+      "http_request_duration_highr_seconds_count": 46.0,
+      "http_request_duration_highr_seconds_sum": 10346.059437472373,
+      "http_request_duration_seconds_count": {
+        "handler=\"/v1/models\",method=\"GET\"": 1.0,
+        "handler=\"/v1/chat/completions\",method=\"POST\"": 45.0
+      },
+      "http_request_duration_seconds_sum": {
+        "handler=\"/v1/models\",method=\"GET\"": 0.0013417638838291168,
+        "handler=\"/v1/chat/completions\",method=\"POST\"": 10346.05809570849
+      }
+    }
+  },
+  {
+    "timestamp": "2026-03-06T02:34:06.357593+00:00",
+    "unix_ts": 1772764446.357593,
+    "poll_index": 64,
+    "metrics": {
+      "python_gc_objects_collected_total": {
+        "generation=\"0\"": 13842.0,
+        "generation=\"1\"": 1799.0,
+        "generation=\"2\"": 505.0
+      },
+      "python_gc_objects_uncollectable_total": {
+        "generation=\"0\"": 0.0,
+        "generation=\"1\"": 0.0,
+        "generation=\"2\"": 0.0
+      },
+      "python_gc_collections_total": {
+        "generation=\"0\"": 2067.0,
+        "generation=\"1\"": 188.0,
+        "generation=\"2\"": 12.0
+      },
+      "python_info": {
+        "implementation=\"CPython\",major=\"3\",minor=\"10\",patchlevel=\"12\",version=\"3.10.12\"": 1.0
+      },
+      "process_virtual_memory_bytes": 35788021760.0,
+      "process_resident_memory_bytes": 1253752832.0,
+      "process_start_time_seconds": 1772760027.04,
+      "process_cpu_seconds_total": 46.29,
+      "process_open_fds": 72.0,
+      "process_max_fds": 1048576.0,
+      "vllm:num_requests_running": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 4.0
+      },
+      "vllm:num_requests_waiting": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0
+      },
+      "vllm:engine_sleep_state": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\",sleep_state=\"awake\"": 1.0,
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\",sleep_state=\"weights_offloaded\"": 0.0,
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\",sleep_state=\"discard_all\"": 0.0
+      },
+      "vllm:kv_cache_usage_perc": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.01817907394053231
+      },
+      "vllm:prefix_cache_queries_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 140810.0
+      },
+      "vllm:prefix_cache_hits_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 111072.0
+      },
+      "vllm:external_prefix_cache_queries_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0
+      },
+      "vllm:external_prefix_cache_hits_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0
+      },
+      "vllm:mm_cache_queries_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0
+      },
+      "vllm:mm_cache_hits_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0
+      },
+      "vllm:num_preemptions_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0
+      },
+      "vllm:prompt_tokens_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 140810.0
+      },
+      "vllm:prompt_tokens_by_source_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\",source=\"local_compute\"": 29738.0,
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\",source=\"local_cache_hit\"": 111073.0,
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\",source=\"external_kv_transfer\"": 0.0
+      },
+      "vllm:prompt_tokens_cached_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 111072.0
+      },
+      "vllm:prompt_tokens_recomputed_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 1.0
+      },
+      "vllm:generation_tokens_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 322972.0
+      },
+      "vllm:request_success_total": {
+        "engine=\"0\",finished_reason=\"stop\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 22.0,
+        "engine=\"0\",finished_reason=\"length\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 3.0,
+        "engine=\"0\",finished_reason=\"abort\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0,
+        "engine=\"0\",finished_reason=\"error\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0
+      },
+      "vllm:request_prompt_tokens_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_prompt_tokens_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 76220.0
+      },
+      "vllm:request_generation_tokens_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_generation_tokens_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 178853.0
+      },
+      "vllm:iteration_tokens_total_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 111195.0
+      },
+      "vllm:iteration_tokens_total_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 463782.0
+      },
+      "vllm:request_max_num_generation_tokens_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_max_num_generation_tokens_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 178853.0
+      },
+      "vllm:request_params_n_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_params_n_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_params_max_tokens_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_params_max_tokens_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 684544.0
+      },
+      "vllm:time_to_first_token_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 49.0
+      },
+      "vllm:time_to_first_token_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 19.022518396377563
+      },
+      "vllm:inter_token_latency_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 322923.0
+      },
+      "vllm:inter_token_latency_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 10564.71792139113
+      },
+      "vllm:request_time_per_output_token_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_time_per_output_token_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.7431340197704096
+      },
+      "vllm:e2e_request_latency_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:e2e_request_latency_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 5580.52157664299
+      },
+      "vllm:request_queue_time_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_queue_time_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0003665238618850708
+      },
+      "vllm:request_inference_time_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_inference_time_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 5578.540463272482
+      },
+      "vllm:request_prefill_time_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_prefill_time_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 3.401273913681507
+      },
+      "vllm:request_decode_time_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_decode_time_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 5575.139189358801
+      },
+      "vllm:request_prefill_kv_computed_tokens_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_prefill_kv_computed_tokens_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 15724.0
+      },
+      "vllm:cache_config_info": {
+        "block_size=\"16\",cache_dtype=\"auto\",calculate_kv_scales=\"False\",cpu_kvcache_space_bytes=\"None\",cpu_offload_gb=\"0.0\",enable_prefix_caching=\"True\",engine=\"0\",gpu_memory_utilization=\"0.92\",is_attention_free=\"False\",kv_cache_memory_bytes=\"None\",kv_offloading_backend=\"native\",kv_offloading_size=\"None\",kv_sharing_fast_prefill=\"False\",mamba_block_size=\"None\",mamba_cache_dtype=\"auto\",mamba_cache_mode=\"none\",mamba_page_size_padded=\"None\",mamba_ssm_cache_dtype=\"auto\",num_cpu_blocks=\"None\",num_gpu_blocks=\"59630\",num_gpu_blocks_override=\"None\",prefix_caching_hash_algo=\"sha256\",sliding_window=\"None\",swap_space=\"16.0\"": 1.0
+      },
+      "http_requests_total": {
+        "handler=\"/v1/models\",method=\"GET\",status=\"2xx\"": 1.0,
+        "handler=\"/v1/chat/completions\",method=\"POST\",status=\"2xx\"": 45.0
+      },
+      "http_request_size_bytes_count": {
+        "handler=\"/v1/models\"": 1.0,
+        "handler=\"/v1/chat/completions\"": 45.0
+      },
+      "http_request_size_bytes_sum": {
+        "handler=\"/v1/models\"": 0.0,
+        "handler=\"/v1/chat/completions\"": 480772.0
+      },
+      "http_response_size_bytes_count": {
+        "handler=\"/v1/models\"": 1.0,
+        "handler=\"/v1/chat/completions\"": 45.0
+      },
+      "http_response_size_bytes_sum": {
+        "handler=\"/v1/models\"": 512.0,
+        "handler=\"/v1/chat/completions\"": 711698.0
+      },
+      "http_request_duration_highr_seconds_count": 46.0,
+      "http_request_duration_highr_seconds_sum": 10346.059437472373,
+      "http_request_duration_seconds_count": {
+        "handler=\"/v1/models\",method=\"GET\"": 1.0,
+        "handler=\"/v1/chat/completions\",method=\"POST\"": 45.0
+      },
+      "http_request_duration_seconds_sum": {
+        "handler=\"/v1/models\",method=\"GET\"": 0.0013417638838291168,
+        "handler=\"/v1/chat/completions\",method=\"POST\"": 10346.05809570849
+      }
+    }
+  },
+  {
+    "timestamp": "2026-03-06T02:34:16.365598+00:00",
+    "unix_ts": 1772764456.365598,
+    "poll_index": 65,
+    "metrics": {
+      "python_gc_objects_collected_total": {
+        "generation=\"0\"": 13842.0,
+        "generation=\"1\"": 1799.0,
+        "generation=\"2\"": 505.0
+      },
+      "python_gc_objects_uncollectable_total": {
+        "generation=\"0\"": 0.0,
+        "generation=\"1\"": 0.0,
+        "generation=\"2\"": 0.0
+      },
+      "python_gc_collections_total": {
+        "generation=\"0\"": 2067.0,
+        "generation=\"1\"": 188.0,
+        "generation=\"2\"": 12.0
+      },
+      "python_info": {
+        "implementation=\"CPython\",major=\"3\",minor=\"10\",patchlevel=\"12\",version=\"3.10.12\"": 1.0
+      },
+      "process_virtual_memory_bytes": 35788021760.0,
+      "process_resident_memory_bytes": 1253752832.0,
+      "process_start_time_seconds": 1772760027.04,
+      "process_cpu_seconds_total": 46.34,
+      "process_open_fds": 72.0,
+      "process_max_fds": 1048576.0,
+      "vllm:num_requests_running": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 4.0
+      },
+      "vllm:num_requests_waiting": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0
+      },
+      "vllm:engine_sleep_state": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\",sleep_state=\"awake\"": 1.0,
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\",sleep_state=\"weights_offloaded\"": 0.0,
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\",sleep_state=\"discard_all\"": 0.0
+      },
+      "vllm:kv_cache_usage_perc": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.019386540106324124
+      },
+      "vllm:prefix_cache_queries_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 140810.0
+      },
+      "vllm:prefix_cache_hits_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 111072.0
+      },
+      "vllm:external_prefix_cache_queries_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0
+      },
+      "vllm:external_prefix_cache_hits_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0
+      },
+      "vllm:mm_cache_queries_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0
+      },
+      "vllm:mm_cache_hits_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0
+      },
+      "vllm:num_preemptions_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0
+      },
+      "vllm:prompt_tokens_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 140810.0
+      },
+      "vllm:prompt_tokens_by_source_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\",source=\"local_compute\"": 29738.0,
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\",source=\"local_cache_hit\"": 111073.0,
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\",source=\"external_kv_transfer\"": 0.0
+      },
+      "vllm:prompt_tokens_cached_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 111072.0
+      },
+      "vllm:prompt_tokens_recomputed_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 1.0
+      },
+      "vllm:generation_tokens_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 324120.0
+      },
+      "vllm:request_success_total": {
+        "engine=\"0\",finished_reason=\"stop\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 22.0,
+        "engine=\"0\",finished_reason=\"length\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 3.0,
+        "engine=\"0\",finished_reason=\"abort\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0,
+        "engine=\"0\",finished_reason=\"error\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0
+      },
+      "vllm:request_prompt_tokens_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_prompt_tokens_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 76220.0
+      },
+      "vllm:request_generation_tokens_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_generation_tokens_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 178853.0
+      },
+      "vllm:iteration_tokens_total_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 111482.0
+      },
+      "vllm:iteration_tokens_total_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 464930.0
+      },
+      "vllm:request_max_num_generation_tokens_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_max_num_generation_tokens_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 178853.0
+      },
+      "vllm:request_params_n_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_params_n_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_params_max_tokens_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_params_max_tokens_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 684544.0
+      },
+      "vllm:time_to_first_token_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 49.0
+      },
+      "vllm:time_to_first_token_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 19.022518396377563
+      },
+      "vllm:inter_token_latency_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 324071.0
+      },
+      "vllm:inter_token_latency_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 10604.66093160212
+      },
+      "vllm:request_time_per_output_token_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_time_per_output_token_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.7431340197704096
+      },
+      "vllm:e2e_request_latency_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:e2e_request_latency_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 5580.52157664299
+      },
+      "vllm:request_queue_time_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_queue_time_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0003665238618850708
+      },
+      "vllm:request_inference_time_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_inference_time_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 5578.540463272482
+      },
+      "vllm:request_prefill_time_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_prefill_time_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 3.401273913681507
+      },
+      "vllm:request_decode_time_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_decode_time_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 5575.139189358801
+      },
+      "vllm:request_prefill_kv_computed_tokens_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_prefill_kv_computed_tokens_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 15724.0
+      },
+      "vllm:cache_config_info": {
+        "block_size=\"16\",cache_dtype=\"auto\",calculate_kv_scales=\"False\",cpu_kvcache_space_bytes=\"None\",cpu_offload_gb=\"0.0\",enable_prefix_caching=\"True\",engine=\"0\",gpu_memory_utilization=\"0.92\",is_attention_free=\"False\",kv_cache_memory_bytes=\"None\",kv_offloading_backend=\"native\",kv_offloading_size=\"None\",kv_sharing_fast_prefill=\"False\",mamba_block_size=\"None\",mamba_cache_dtype=\"auto\",mamba_cache_mode=\"none\",mamba_page_size_padded=\"None\",mamba_ssm_cache_dtype=\"auto\",num_cpu_blocks=\"None\",num_gpu_blocks=\"59630\",num_gpu_blocks_override=\"None\",prefix_caching_hash_algo=\"sha256\",sliding_window=\"None\",swap_space=\"16.0\"": 1.0
+      },
+      "http_requests_total": {
+        "handler=\"/v1/models\",method=\"GET\",status=\"2xx\"": 1.0,
+        "handler=\"/v1/chat/completions\",method=\"POST\",status=\"2xx\"": 45.0
+      },
+      "http_request_size_bytes_count": {
+        "handler=\"/v1/models\"": 1.0,
+        "handler=\"/v1/chat/completions\"": 45.0
+      },
+      "http_request_size_bytes_sum": {
+        "handler=\"/v1/models\"": 0.0,
+        "handler=\"/v1/chat/completions\"": 480772.0
+      },
+      "http_response_size_bytes_count": {
+        "handler=\"/v1/models\"": 1.0,
+        "handler=\"/v1/chat/completions\"": 45.0
+      },
+      "http_response_size_bytes_sum": {
+        "handler=\"/v1/models\"": 512.0,
+        "handler=\"/v1/chat/completions\"": 711698.0
+      },
+      "http_request_duration_highr_seconds_count": 46.0,
+      "http_request_duration_highr_seconds_sum": 10346.059437472373,
+      "http_request_duration_seconds_count": {
+        "handler=\"/v1/models\",method=\"GET\"": 1.0,
+        "handler=\"/v1/chat/completions\",method=\"POST\"": 45.0
+      },
+      "http_request_duration_seconds_sum": {
+        "handler=\"/v1/models\",method=\"GET\"": 0.0013417638838291168,
+        "handler=\"/v1/chat/completions\",method=\"POST\"": 10346.05809570849
+      }
+    }
+  },
+  {
+    "timestamp": "2026-03-06T02:34:26.369936+00:00",
+    "unix_ts": 1772764466.369936,
+    "poll_index": 66,
+    "metrics": {
+      "python_gc_objects_collected_total": {
+        "generation=\"0\"": 13842.0,
+        "generation=\"1\"": 1799.0,
+        "generation=\"2\"": 505.0
+      },
+      "python_gc_objects_uncollectable_total": {
+        "generation=\"0\"": 0.0,
+        "generation=\"1\"": 0.0,
+        "generation=\"2\"": 0.0
+      },
+      "python_gc_collections_total": {
+        "generation=\"0\"": 2067.0,
+        "generation=\"1\"": 188.0,
+        "generation=\"2\"": 12.0
+      },
+      "python_info": {
+        "implementation=\"CPython\",major=\"3\",minor=\"10\",patchlevel=\"12\",version=\"3.10.12\"": 1.0
+      },
+      "process_virtual_memory_bytes": 35788021760.0,
+      "process_resident_memory_bytes": 1253752832.0,
+      "process_start_time_seconds": 1772760027.04,
+      "process_cpu_seconds_total": 46.379999999999995,
+      "process_open_fds": 72.0,
+      "process_max_fds": 1048576.0,
+      "vllm:num_requests_running": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 4.0
+      },
+      "vllm:num_requests_waiting": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0
+      },
+      "vllm:engine_sleep_state": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\",sleep_state=\"awake\"": 1.0,
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\",sleep_state=\"weights_offloaded\"": 0.0,
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\",sleep_state=\"discard_all\"": 0.0
+      },
+      "vllm:kv_cache_usage_perc": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.02071139881601236
+      },
+      "vllm:prefix_cache_queries_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 140810.0
+      },
+      "vllm:prefix_cache_hits_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 111072.0
+      },
+      "vllm:external_prefix_cache_queries_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0
+      },
+      "vllm:external_prefix_cache_hits_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0
+      },
+      "vllm:mm_cache_queries_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0
+      },
+      "vllm:mm_cache_hits_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0
+      },
+      "vllm:num_preemptions_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0
+      },
+      "vllm:prompt_tokens_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 140810.0
+      },
+      "vllm:prompt_tokens_by_source_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\",source=\"local_compute\"": 29738.0,
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\",source=\"local_cache_hit\"": 111073.0,
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\",source=\"external_kv_transfer\"": 0.0
+      },
+      "vllm:prompt_tokens_cached_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 111072.0
+      },
+      "vllm:prompt_tokens_recomputed_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 1.0
+      },
+      "vllm:generation_tokens_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 325376.0
+      },
+      "vllm:request_success_total": {
+        "engine=\"0\",finished_reason=\"stop\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 22.0,
+        "engine=\"0\",finished_reason=\"length\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 3.0,
+        "engine=\"0\",finished_reason=\"abort\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0,
+        "engine=\"0\",finished_reason=\"error\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0
+      },
+      "vllm:request_prompt_tokens_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_prompt_tokens_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 76220.0
+      },
+      "vllm:request_generation_tokens_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_generation_tokens_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 178853.0
+      },
+      "vllm:iteration_tokens_total_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 111796.0
+      },
+      "vllm:iteration_tokens_total_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 466186.0
+      },
+      "vllm:request_max_num_generation_tokens_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_max_num_generation_tokens_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 178853.0
+      },
+      "vllm:request_params_n_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_params_n_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_params_max_tokens_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_params_max_tokens_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 684544.0
+      },
+      "vllm:time_to_first_token_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 49.0
+      },
+      "vllm:time_to_first_token_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 19.022518396377563
+      },
+      "vllm:inter_token_latency_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 325327.0
+      },
+      "vllm:inter_token_latency_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 10645.015341445804
+      },
+      "vllm:request_time_per_output_token_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_time_per_output_token_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.7431340197704096
+      },
+      "vllm:e2e_request_latency_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:e2e_request_latency_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 5580.52157664299
+      },
+      "vllm:request_queue_time_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_queue_time_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0003665238618850708
+      },
+      "vllm:request_inference_time_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_inference_time_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 5578.540463272482
+      },
+      "vllm:request_prefill_time_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_prefill_time_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 3.401273913681507
+      },
+      "vllm:request_decode_time_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_decode_time_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 5575.139189358801
+      },
+      "vllm:request_prefill_kv_computed_tokens_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_prefill_kv_computed_tokens_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 15724.0
+      },
+      "vllm:cache_config_info": {
+        "block_size=\"16\",cache_dtype=\"auto\",calculate_kv_scales=\"False\",cpu_kvcache_space_bytes=\"None\",cpu_offload_gb=\"0.0\",enable_prefix_caching=\"True\",engine=\"0\",gpu_memory_utilization=\"0.92\",is_attention_free=\"False\",kv_cache_memory_bytes=\"None\",kv_offloading_backend=\"native\",kv_offloading_size=\"None\",kv_sharing_fast_prefill=\"False\",mamba_block_size=\"None\",mamba_cache_dtype=\"auto\",mamba_cache_mode=\"none\",mamba_page_size_padded=\"None\",mamba_ssm_cache_dtype=\"auto\",num_cpu_blocks=\"None\",num_gpu_blocks=\"59630\",num_gpu_blocks_override=\"None\",prefix_caching_hash_algo=\"sha256\",sliding_window=\"None\",swap_space=\"16.0\"": 1.0
+      },
+      "http_requests_total": {
+        "handler=\"/v1/models\",method=\"GET\",status=\"2xx\"": 1.0,
+        "handler=\"/v1/chat/completions\",method=\"POST\",status=\"2xx\"": 45.0
+      },
+      "http_request_size_bytes_count": {
+        "handler=\"/v1/models\"": 1.0,
+        "handler=\"/v1/chat/completions\"": 45.0
+      },
+      "http_request_size_bytes_sum": {
+        "handler=\"/v1/models\"": 0.0,
+        "handler=\"/v1/chat/completions\"": 480772.0
+      },
+      "http_response_size_bytes_count": {
+        "handler=\"/v1/models\"": 1.0,
+        "handler=\"/v1/chat/completions\"": 45.0
+      },
+      "http_response_size_bytes_sum": {
+        "handler=\"/v1/models\"": 512.0,
+        "handler=\"/v1/chat/completions\"": 711698.0
+      },
+      "http_request_duration_highr_seconds_count": 46.0,
+      "http_request_duration_highr_seconds_sum": 10346.059437472373,
+      "http_request_duration_seconds_count": {
+        "handler=\"/v1/models\",method=\"GET\"": 1.0,
+        "handler=\"/v1/chat/completions\",method=\"POST\"": 45.0
+      },
+      "http_request_duration_seconds_sum": {
+        "handler=\"/v1/models\",method=\"GET\"": 0.0013417638838291168,
+        "handler=\"/v1/chat/completions\",method=\"POST\"": 10346.05809570849
+      }
+    }
+  },
+  {
+    "timestamp": "2026-03-06T02:34:36.379698+00:00",
+    "unix_ts": 1772764476.379698,
+    "poll_index": 67,
+    "metrics": {
+      "python_gc_objects_collected_total": {
+        "generation=\"0\"": 13842.0,
+        "generation=\"1\"": 1799.0,
+        "generation=\"2\"": 505.0
+      },
+      "python_gc_objects_uncollectable_total": {
+        "generation=\"0\"": 0.0,
+        "generation=\"1\"": 0.0,
+        "generation=\"2\"": 0.0
+      },
+      "python_gc_collections_total": {
+        "generation=\"0\"": 2067.0,
+        "generation=\"1\"": 188.0,
+        "generation=\"2\"": 12.0
+      },
+      "python_info": {
+        "implementation=\"CPython\",major=\"3\",minor=\"10\",patchlevel=\"12\",version=\"3.10.12\"": 1.0
+      },
+      "process_virtual_memory_bytes": 35788021760.0,
+      "process_resident_memory_bytes": 1253752832.0,
+      "process_start_time_seconds": 1772760027.04,
+      "process_cpu_seconds_total": 46.45,
+      "process_open_fds": 72.0,
+      "process_max_fds": 1048576.0,
+      "vllm:num_requests_running": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 4.0
+      },
+      "vllm:num_requests_waiting": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0
+      },
+      "vllm:engine_sleep_state": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\",sleep_state=\"awake\"": 1.0,
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\",sleep_state=\"weights_offloaded\"": 0.0,
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\",sleep_state=\"discard_all\"": 0.0
+      },
+      "vllm:kv_cache_usage_perc": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.022086568615941937
+      },
+      "vllm:prefix_cache_queries_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 140810.0
+      },
+      "vllm:prefix_cache_hits_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 111072.0
+      },
+      "vllm:external_prefix_cache_queries_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0
+      },
+      "vllm:external_prefix_cache_hits_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0
+      },
+      "vllm:mm_cache_queries_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0
+      },
+      "vllm:mm_cache_hits_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0
+      },
+      "vllm:num_preemptions_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0
+      },
+      "vllm:prompt_tokens_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 140810.0
+      },
+      "vllm:prompt_tokens_by_source_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\",source=\"local_compute\"": 29738.0,
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\",source=\"local_cache_hit\"": 111073.0,
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\",source=\"external_kv_transfer\"": 0.0
+      },
+      "vllm:prompt_tokens_cached_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 111072.0
+      },
+      "vllm:prompt_tokens_recomputed_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 1.0
+      },
+      "vllm:generation_tokens_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 326700.0
+      },
+      "vllm:request_success_total": {
+        "engine=\"0\",finished_reason=\"stop\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 22.0,
+        "engine=\"0\",finished_reason=\"length\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 3.0,
+        "engine=\"0\",finished_reason=\"abort\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0,
+        "engine=\"0\",finished_reason=\"error\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0
+      },
+      "vllm:request_prompt_tokens_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_prompt_tokens_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 76220.0
+      },
+      "vllm:request_generation_tokens_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_generation_tokens_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 178853.0
+      },
+      "vllm:iteration_tokens_total_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 112127.0
+      },
+      "vllm:iteration_tokens_total_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 467510.0
+      },
+      "vllm:request_max_num_generation_tokens_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_max_num_generation_tokens_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 178853.0
+      },
+      "vllm:request_params_n_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_params_n_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_params_max_tokens_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_params_max_tokens_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 684544.0
+      },
+      "vllm:time_to_first_token_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 49.0
+      },
+      "vllm:time_to_first_token_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 19.022518396377563
+      },
+      "vllm:inter_token_latency_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 326651.0
+      },
+      "vllm:inter_token_latency_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 10685.01100589335
+      },
+      "vllm:request_time_per_output_token_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_time_per_output_token_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.7431340197704096
+      },
+      "vllm:e2e_request_latency_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:e2e_request_latency_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 5580.52157664299
+      },
+      "vllm:request_queue_time_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_queue_time_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0003665238618850708
+      },
+      "vllm:request_inference_time_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_inference_time_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 5578.540463272482
+      },
+      "vllm:request_prefill_time_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_prefill_time_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 3.401273913681507
+      },
+      "vllm:request_decode_time_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_decode_time_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 5575.139189358801
+      },
+      "vllm:request_prefill_kv_computed_tokens_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_prefill_kv_computed_tokens_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 15724.0
+      },
+      "vllm:cache_config_info": {
+        "block_size=\"16\",cache_dtype=\"auto\",calculate_kv_scales=\"False\",cpu_kvcache_space_bytes=\"None\",cpu_offload_gb=\"0.0\",enable_prefix_caching=\"True\",engine=\"0\",gpu_memory_utilization=\"0.92\",is_attention_free=\"False\",kv_cache_memory_bytes=\"None\",kv_offloading_backend=\"native\",kv_offloading_size=\"None\",kv_sharing_fast_prefill=\"False\",mamba_block_size=\"None\",mamba_cache_dtype=\"auto\",mamba_cache_mode=\"none\",mamba_page_size_padded=\"None\",mamba_ssm_cache_dtype=\"auto\",num_cpu_blocks=\"None\",num_gpu_blocks=\"59630\",num_gpu_blocks_override=\"None\",prefix_caching_hash_algo=\"sha256\",sliding_window=\"None\",swap_space=\"16.0\"": 1.0
+      },
+      "http_requests_total": {
+        "handler=\"/v1/models\",method=\"GET\",status=\"2xx\"": 1.0,
+        "handler=\"/v1/chat/completions\",method=\"POST\",status=\"2xx\"": 45.0
+      },
+      "http_request_size_bytes_count": {
+        "handler=\"/v1/models\"": 1.0,
+        "handler=\"/v1/chat/completions\"": 45.0
+      },
+      "http_request_size_bytes_sum": {
+        "handler=\"/v1/models\"": 0.0,
+        "handler=\"/v1/chat/completions\"": 480772.0
+      },
+      "http_response_size_bytes_count": {
+        "handler=\"/v1/models\"": 1.0,
+        "handler=\"/v1/chat/completions\"": 45.0
+      },
+      "http_response_size_bytes_sum": {
+        "handler=\"/v1/models\"": 512.0,
+        "handler=\"/v1/chat/completions\"": 711698.0
+      },
+      "http_request_duration_highr_seconds_count": 46.0,
+      "http_request_duration_highr_seconds_sum": 10346.059437472373,
+      "http_request_duration_seconds_count": {
+        "handler=\"/v1/models\",method=\"GET\"": 1.0,
+        "handler=\"/v1/chat/completions\",method=\"POST\"": 45.0
+      },
+      "http_request_duration_seconds_sum": {
+        "handler=\"/v1/models\",method=\"GET\"": 0.0013417638838291168,
+        "handler=\"/v1/chat/completions\",method=\"POST\"": 10346.05809570849
+      }
+    }
+  },
+  {
+    "timestamp": "2026-03-06T02:34:46.383471+00:00",
+    "unix_ts": 1772764486.383471,
+    "poll_index": 68,
+    "metrics": {
+      "python_gc_objects_collected_total": {
+        "generation=\"0\"": 13842.0,
+        "generation=\"1\"": 1799.0,
+        "generation=\"2\"": 505.0
+      },
+      "python_gc_objects_uncollectable_total": {
+        "generation=\"0\"": 0.0,
+        "generation=\"1\"": 0.0,
+        "generation=\"2\"": 0.0
+      },
+      "python_gc_collections_total": {
+        "generation=\"0\"": 2067.0,
+        "generation=\"1\"": 188.0,
+        "generation=\"2\"": 12.0
+      },
+      "python_info": {
+        "implementation=\"CPython\",major=\"3\",minor=\"10\",patchlevel=\"12\",version=\"3.10.12\"": 1.0
+      },
+      "process_virtual_memory_bytes": 35788021760.0,
+      "process_resident_memory_bytes": 1253752832.0,
+      "process_start_time_seconds": 1772760027.04,
+      "process_cpu_seconds_total": 46.5,
+      "process_open_fds": 72.0,
+      "process_max_fds": 1048576.0,
+      "vllm:num_requests_running": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 4.0
+      },
+      "vllm:num_requests_waiting": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0
+      },
+      "vllm:engine_sleep_state": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\",sleep_state=\"awake\"": 1.0,
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\",sleep_state=\"weights_offloaded\"": 0.0,
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\",sleep_state=\"discard_all\"": 0.0
+      },
+      "vllm:kv_cache_usage_perc": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.023461738415871514
+      },
+      "vllm:prefix_cache_queries_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 140810.0
+      },
+      "vllm:prefix_cache_hits_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 111072.0
+      },
+      "vllm:external_prefix_cache_queries_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0
+      },
+      "vllm:external_prefix_cache_hits_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0
+      },
+      "vllm:mm_cache_queries_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0
+      },
+      "vllm:mm_cache_hits_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0
+      },
+      "vllm:num_preemptions_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0
+      },
+      "vllm:prompt_tokens_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 140810.0
+      },
+      "vllm:prompt_tokens_by_source_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\",source=\"local_compute\"": 29738.0,
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\",source=\"local_cache_hit\"": 111073.0,
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\",source=\"external_kv_transfer\"": 0.0
+      },
+      "vllm:prompt_tokens_cached_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 111072.0
+      },
+      "vllm:prompt_tokens_recomputed_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 1.0
+      },
+      "vllm:generation_tokens_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 327996.0
+      },
+      "vllm:request_success_total": {
+        "engine=\"0\",finished_reason=\"stop\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 22.0,
+        "engine=\"0\",finished_reason=\"length\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 3.0,
+        "engine=\"0\",finished_reason=\"abort\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0,
+        "engine=\"0\",finished_reason=\"error\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0
+      },
+      "vllm:request_prompt_tokens_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_prompt_tokens_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 76220.0
+      },
+      "vllm:request_generation_tokens_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_generation_tokens_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 178853.0
+      },
+      "vllm:iteration_tokens_total_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 112451.0
+      },
+      "vllm:iteration_tokens_total_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 468806.0
+      },
+      "vllm:request_max_num_generation_tokens_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_max_num_generation_tokens_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 178853.0
+      },
+      "vllm:request_params_n_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_params_n_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_params_max_tokens_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_params_max_tokens_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 684544.0
+      },
+      "vllm:time_to_first_token_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 49.0
+      },
+      "vllm:time_to_first_token_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 19.022518396377563
+      },
+      "vllm:inter_token_latency_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 327947.0
+      },
+      "vllm:inter_token_latency_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 10724.452847197652
+      },
+      "vllm:request_time_per_output_token_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_time_per_output_token_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.7431340197704096
+      },
+      "vllm:e2e_request_latency_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:e2e_request_latency_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 5580.52157664299
+      },
+      "vllm:request_queue_time_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_queue_time_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0003665238618850708
+      },
+      "vllm:request_inference_time_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_inference_time_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 5578.540463272482
+      },
+      "vllm:request_prefill_time_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_prefill_time_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 3.401273913681507
+      },
+      "vllm:request_decode_time_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_decode_time_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 5575.139189358801
+      },
+      "vllm:request_prefill_kv_computed_tokens_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_prefill_kv_computed_tokens_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 15724.0
+      },
+      "vllm:cache_config_info": {
+        "block_size=\"16\",cache_dtype=\"auto\",calculate_kv_scales=\"False\",cpu_kvcache_space_bytes=\"None\",cpu_offload_gb=\"0.0\",enable_prefix_caching=\"True\",engine=\"0\",gpu_memory_utilization=\"0.92\",is_attention_free=\"False\",kv_cache_memory_bytes=\"None\",kv_offloading_backend=\"native\",kv_offloading_size=\"None\",kv_sharing_fast_prefill=\"False\",mamba_block_size=\"None\",mamba_cache_dtype=\"auto\",mamba_cache_mode=\"none\",mamba_page_size_padded=\"None\",mamba_ssm_cache_dtype=\"auto\",num_cpu_blocks=\"None\",num_gpu_blocks=\"59630\",num_gpu_blocks_override=\"None\",prefix_caching_hash_algo=\"sha256\",sliding_window=\"None\",swap_space=\"16.0\"": 1.0
+      },
+      "http_requests_total": {
+        "handler=\"/v1/models\",method=\"GET\",status=\"2xx\"": 1.0,
+        "handler=\"/v1/chat/completions\",method=\"POST\",status=\"2xx\"": 45.0
+      },
+      "http_request_size_bytes_count": {
+        "handler=\"/v1/models\"": 1.0,
+        "handler=\"/v1/chat/completions\"": 45.0
+      },
+      "http_request_size_bytes_sum": {
+        "handler=\"/v1/models\"": 0.0,
+        "handler=\"/v1/chat/completions\"": 480772.0
+      },
+      "http_response_size_bytes_count": {
+        "handler=\"/v1/models\"": 1.0,
+        "handler=\"/v1/chat/completions\"": 45.0
+      },
+      "http_response_size_bytes_sum": {
+        "handler=\"/v1/models\"": 512.0,
+        "handler=\"/v1/chat/completions\"": 711698.0
+      },
+      "http_request_duration_highr_seconds_count": 46.0,
+      "http_request_duration_highr_seconds_sum": 10346.059437472373,
+      "http_request_duration_seconds_count": {
+        "handler=\"/v1/models\",method=\"GET\"": 1.0,
+        "handler=\"/v1/chat/completions\",method=\"POST\"": 45.0
+      },
+      "http_request_duration_seconds_sum": {
+        "handler=\"/v1/models\",method=\"GET\"": 0.0013417638838291168,
+        "handler=\"/v1/chat/completions\",method=\"POST\"": 10346.05809570849
+      }
+    }
+  },
+  {
+    "timestamp": "2026-03-06T02:34:56.389595+00:00",
+    "unix_ts": 1772764496.389595,
+    "poll_index": 69,
+    "metrics": {
+      "python_gc_objects_collected_total": {
+        "generation=\"0\"": 13842.0,
+        "generation=\"1\"": 1799.0,
+        "generation=\"2\"": 505.0
+      },
+      "python_gc_objects_uncollectable_total": {
+        "generation=\"0\"": 0.0,
+        "generation=\"1\"": 0.0,
+        "generation=\"2\"": 0.0
+      },
+      "python_gc_collections_total": {
+        "generation=\"0\"": 2067.0,
+        "generation=\"1\"": 188.0,
+        "generation=\"2\"": 12.0
+      },
+      "python_info": {
+        "implementation=\"CPython\",major=\"3\",minor=\"10\",patchlevel=\"12\",version=\"3.10.12\"": 1.0
+      },
+      "process_virtual_memory_bytes": 35788021760.0,
+      "process_resident_memory_bytes": 1253752832.0,
+      "process_start_time_seconds": 1772760027.04,
+      "process_cpu_seconds_total": 46.55,
+      "process_open_fds": 72.0,
+      "process_max_fds": 1048576.0,
+      "vllm:num_requests_running": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 4.0
+      },
+      "vllm:num_requests_waiting": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0
+      },
+      "vllm:engine_sleep_state": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\",sleep_state=\"awake\"": 1.0,
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\",sleep_state=\"weights_offloaded\"": 0.0,
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\",sleep_state=\"discard_all\"": 0.0
+      },
+      "vllm:kv_cache_usage_perc": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.024903989669456172
+      },
+      "vllm:prefix_cache_queries_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 140810.0
+      },
+      "vllm:prefix_cache_hits_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 111072.0
+      },
+      "vllm:external_prefix_cache_queries_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0
+      },
+      "vllm:external_prefix_cache_hits_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0
+      },
+      "vllm:mm_cache_queries_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0
+      },
+      "vllm:mm_cache_hits_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0
+      },
+      "vllm:num_preemptions_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0
+      },
+      "vllm:prompt_tokens_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 140810.0
+      },
+      "vllm:prompt_tokens_by_source_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\",source=\"local_compute\"": 29738.0,
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\",source=\"local_cache_hit\"": 111073.0,
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\",source=\"external_kv_transfer\"": 0.0
+      },
+      "vllm:prompt_tokens_cached_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 111072.0
+      },
+      "vllm:prompt_tokens_recomputed_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 1.0
+      },
+      "vllm:generation_tokens_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 329380.0
+      },
+      "vllm:request_success_total": {
+        "engine=\"0\",finished_reason=\"stop\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 22.0,
+        "engine=\"0\",finished_reason=\"length\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 3.0,
+        "engine=\"0\",finished_reason=\"abort\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0,
+        "engine=\"0\",finished_reason=\"error\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0
+      },
+      "vllm:request_prompt_tokens_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_prompt_tokens_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 76220.0
+      },
+      "vllm:request_generation_tokens_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_generation_tokens_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 178853.0
+      },
+      "vllm:iteration_tokens_total_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 112797.0
+      },
+      "vllm:iteration_tokens_total_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 470190.0
+      },
+      "vllm:request_max_num_generation_tokens_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_max_num_generation_tokens_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 178853.0
+      },
+      "vllm:request_params_n_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_params_n_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_params_max_tokens_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_params_max_tokens_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 684544.0
+      },
+      "vllm:time_to_first_token_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 49.0
+      },
+      "vllm:time_to_first_token_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 19.022518396377563
+      },
+      "vllm:inter_token_latency_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 329331.0
+      },
+      "vllm:inter_token_latency_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 10765.124001011252
+      },
+      "vllm:request_time_per_output_token_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_time_per_output_token_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.7431340197704096
+      },
+      "vllm:e2e_request_latency_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:e2e_request_latency_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 5580.52157664299
+      },
+      "vllm:request_queue_time_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_queue_time_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0003665238618850708
+      },
+      "vllm:request_inference_time_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_inference_time_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 5578.540463272482
+      },
+      "vllm:request_prefill_time_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_prefill_time_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 3.401273913681507
+      },
+      "vllm:request_decode_time_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_decode_time_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 5575.139189358801
+      },
+      "vllm:request_prefill_kv_computed_tokens_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 25.0
+      },
+      "vllm:request_prefill_kv_computed_tokens_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 15724.0
+      },
+      "vllm:cache_config_info": {
+        "block_size=\"16\",cache_dtype=\"auto\",calculate_kv_scales=\"False\",cpu_kvcache_space_bytes=\"None\",cpu_offload_gb=\"0.0\",enable_prefix_caching=\"True\",engine=\"0\",gpu_memory_utilization=\"0.92\",is_attention_free=\"False\",kv_cache_memory_bytes=\"None\",kv_offloading_backend=\"native\",kv_offloading_size=\"None\",kv_sharing_fast_prefill=\"False\",mamba_block_size=\"None\",mamba_cache_dtype=\"auto\",mamba_cache_mode=\"none\",mamba_page_size_padded=\"None\",mamba_ssm_cache_dtype=\"auto\",num_cpu_blocks=\"None\",num_gpu_blocks=\"59630\",num_gpu_blocks_override=\"None\",prefix_caching_hash_algo=\"sha256\",sliding_window=\"None\",swap_space=\"16.0\"": 1.0
+      },
+      "http_requests_total": {
+        "handler=\"/v1/models\",method=\"GET\",status=\"2xx\"": 1.0,
+        "handler=\"/v1/chat/completions\",method=\"POST\",status=\"2xx\"": 45.0
+      },
+      "http_request_size_bytes_count": {
+        "handler=\"/v1/models\"": 1.0,
+        "handler=\"/v1/chat/completions\"": 45.0
+      },
+      "http_request_size_bytes_sum": {
+        "handler=\"/v1/models\"": 0.0,
+        "handler=\"/v1/chat/completions\"": 480772.0
+      },
+      "http_response_size_bytes_count": {
+        "handler=\"/v1/models\"": 1.0,
+        "handler=\"/v1/chat/completions\"": 45.0
+      },
+      "http_response_size_bytes_sum": {
+        "handler=\"/v1/models\"": 512.0,
+        "handler=\"/v1/chat/completions\"": 711698.0
+      },
+      "http_request_duration_highr_seconds_count": 46.0,
+      "http_request_duration_highr_seconds_sum": 10346.059437472373,
+      "http_request_duration_seconds_count": {
+        "handler=\"/v1/models\",method=\"GET\"": 1.0,
+        "handler=\"/v1/chat/completions\",method=\"POST\"": 45.0
+      },
+      "http_request_duration_seconds_sum": {
+        "handler=\"/v1/models\",method=\"GET\"": 0.0013417638838291168,
+        "handler=\"/v1/chat/completions\",method=\"POST\"": 10346.05809570849
+      }
+    }
+  },
+  {
+    "timestamp": "2026-03-06T02:35:06.397599+00:00",
+    "unix_ts": 1772764506.397599,
+    "poll_index": 70,
+    "metrics": {
+      "python_gc_objects_collected_total": {
+        "generation=\"0\"": 13842.0,
+        "generation=\"1\"": 1799.0,
+        "generation=\"2\"": 505.0
+      },
+      "python_gc_objects_uncollectable_total": {
+        "generation=\"0\"": 0.0,
+        "generation=\"1\"": 0.0,
+        "generation=\"2\"": 0.0
+      },
+      "python_gc_collections_total": {
+        "generation=\"0\"": 2067.0,
+        "generation=\"1\"": 188.0,
+        "generation=\"2\"": 12.0
+      },
+      "python_info": {
+        "implementation=\"CPython\",major=\"3\",minor=\"10\",patchlevel=\"12\",version=\"3.10.12\"": 1.0
+      },
+      "process_virtual_memory_bytes": 35788021760.0,
+      "process_resident_memory_bytes": 1253752832.0,
+      "process_start_time_seconds": 1772760027.04,
+      "process_cpu_seconds_total": 46.61,
+      "process_open_fds": 72.0,
+      "process_max_fds": 1048576.0,
+      "vllm:num_requests_running": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 3.0
+      },
+      "vllm:num_requests_waiting": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0
+      },
+      "vllm:engine_sleep_state": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\",sleep_state=\"awake\"": 1.0,
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\",sleep_state=\"weights_offloaded\"": 0.0,
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\",sleep_state=\"discard_all\"": 0.0
+      },
+      "vllm:kv_cache_usage_perc": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.01871572556977308
+      },
+      "vllm:prefix_cache_queries_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 140810.0
+      },
+      "vllm:prefix_cache_hits_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 111072.0
+      },
+      "vllm:external_prefix_cache_queries_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0
+      },
+      "vllm:external_prefix_cache_hits_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0
+      },
+      "vllm:mm_cache_queries_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0
+      },
+      "vllm:mm_cache_hits_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0
+      },
+      "vllm:num_preemptions_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0
+      },
+      "vllm:prompt_tokens_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 140810.0
+      },
+      "vllm:prompt_tokens_by_source_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\",source=\"local_compute\"": 29738.0,
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\",source=\"local_cache_hit\"": 111073.0,
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\",source=\"external_kv_transfer\"": 0.0
+      },
+      "vllm:prompt_tokens_cached_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 111072.0
+      },
+      "vllm:prompt_tokens_recomputed_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 1.0
+      },
+      "vllm:generation_tokens_total": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 330639.0
+      },
+      "vllm:request_success_total": {
+        "engine=\"0\",finished_reason=\"stop\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 23.0,
+        "engine=\"0\",finished_reason=\"length\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 3.0,
+        "engine=\"0\",finished_reason=\"abort\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0,
+        "engine=\"0\",finished_reason=\"error\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.0
+      },
+      "vllm:request_prompt_tokens_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 26.0
+      },
+      "vllm:request_prompt_tokens_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 81310.0
+      },
+      "vllm:request_generation_tokens_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 26.0
+      },
+      "vllm:request_generation_tokens_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 182694.0
+      },
+      "vllm:iteration_tokens_total_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 113118.0
+      },
+      "vllm:iteration_tokens_total_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 471449.0
+      },
+      "vllm:request_max_num_generation_tokens_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 26.0
+      },
+      "vllm:request_max_num_generation_tokens_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 182694.0
+      },
+      "vllm:request_params_n_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 26.0
+      },
+      "vllm:request_params_n_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 26.0
+      },
+      "vllm:request_params_max_tokens_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 26.0
+      },
+      "vllm:request_params_max_tokens_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 717312.0
+      },
+      "vllm:time_to_first_token_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 49.0
+      },
+      "vllm:time_to_first_token_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 19.022518396377563
+      },
+      "vllm:inter_token_latency_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 330590.0
+      },
+      "vllm:inter_token_latency_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 10804.193862862885
+      },
+      "vllm:request_time_per_output_token_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 26.0
+      },
+      "vllm:request_time_per_output_token_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.7740938540142014
+      },
+      "vllm:e2e_request_latency_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 26.0
+      },
+      "vllm:e2e_request_latency_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 5699.710870504379
+      },
+      "vllm:request_queue_time_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 26.0
+      },
+      "vllm:request_queue_time_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 0.00037051737308502197
+      },
+      "vllm:request_inference_time_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 26.0
+      },
+      "vllm:request_inference_time_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 5697.6567322686315
+      },
+      "vllm:request_prefill_time_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 26.0
+      },
+      "vllm:request_prefill_time_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 3.6317794136703014
+      },
+      "vllm:request_decode_time_seconds_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 26.0
+      },
+      "vllm:request_decode_time_seconds_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 5694.024952854961
+      },
+      "vllm:request_prefill_kv_computed_tokens_count": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 26.0
+      },
+      "vllm:request_prefill_kv_computed_tokens_sum": {
+        "engine=\"0\",model_name=\"Qwen/Qwen3-235B-A22B-Thinking-2507-FP8\"": 17630.0
+      },
+      "vllm:cache_config_info": {
+        "block_size=\"16\",cache_dtype=\"auto\",calculate_kv_scales=\"False\",cpu_kvcache_space_bytes=\"None\",cpu_offload_gb=\"0.0\",enable_prefix_caching=\"True\",engine=\"0\",gpu_memory_utilization=\"0.92\",is_attention_free=\"False\",kv_cache_memory_bytes=\"None\",kv_offloading_backend=\"native\",kv_offloading_size=\"None\",kv_sharing_fast_prefill=\"False\",mamba_block_size=\"None\",mamba_cache_dtype=\"auto\",mamba_cache_mode=\"none\",mamba_page_size_padded=\"None\",mamba_ssm_cache_dtype=\"auto\",num_cpu_blocks=\"None\",num_gpu_blocks=\"59630\",num_gpu_blocks_override=\"None\",prefix_caching_hash_algo=\"sha256\",sliding_window=\"None\",swap_space=\"16.0\"": 1.0
+      },
+      "http_requests_total": {
+        "handler=\"/v1/models\",method=\"GET\",status=\"2xx\"": 1.0,
+        "handler=\"/v1/chat/completions\",method=\"POST\",status=\"2xx\"": 46.0
+      },
+      "http_request_size_bytes_count": {
+        "handler=\"/v1/models\"": 1.0,
+        "handler=\"/v1/chat/completions\"": 46.0
+      },
+      "http_request_size_bytes_sum": {
+        "handler=\"/v1/models\"": 0.0,
+        "handler=\"/v1/chat/completions\"": 500989.0
+      },
+      "http_response_size_bytes_count": {
+        "handler=\"/v1/models\"": 1.0,
+        "handler=\"/v1/chat/completions\"": 46.0
+      },
+      "http_response_size_bytes_sum": {
+        "handler=\"/v1/models\"": 512.0,
+        "handler=\"/v1/chat/completions\"": 727750.0
+      },
+      "http_request_duration_highr_seconds_count": 47.0,
+      "http_request_duration_highr_seconds_sum": 10465.284515019506,
+      "http_request_duration_seconds_count": {
+        "handler=\"/v1/models\",method=\"GET\"": 1.0,
+        "handler=\"/v1/chat/completions\",method=\"POST\"": 46.0
+      },
+      "http_request_duration_seconds_sum": {
+        "handler=\"/v1/models\",method=\"GET\"": 0.0013417638838291168,
+        "handler=\"/v1/chat/completions\",method=\"POST\"": 10465.283173255622
+      }
+    }
+  }
+]

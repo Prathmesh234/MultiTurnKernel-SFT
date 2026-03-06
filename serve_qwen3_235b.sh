@@ -6,11 +6,12 @@
 # 2. Start vLLM server for Qwen3-235B-A22B-Instruct (FP8) locally
 # =============================================================================
 #
-# Model: Qwen/Qwen3-235B-A22B-Instruct-2507-FP8
+# Model: Qwen/Qwen3-235B-A22B-Thinking-2507-FP8
 #   - 235B total params, 22B active (MoE: 128 experts, top-8 routing)
 #   - 131072 context window
-#   - Supports reasoning via <think> tags (vLLM reasoning parser: qwen3)
+#   - Always generates reasoning via <think> tags (vLLM reasoning parser: qwen3)
 #   - FP8 quantized — fits on 8x H100 (80GB) with NVLink
+#   - Use Thinking variant (not Instruct) to get reasoning traces
 #
 # GPU Requirements:
 #   - FP8:  8x H100 (80GB) with NVLink
@@ -23,7 +24,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # vLLM Configuration
-MODEL_NAME="Qwen/Qwen3-235B-A22B-Instruct-2507-FP8"
+MODEL_NAME="Qwen/Qwen3-235B-A22B-Thinking-2507-FP8"
 TENSOR_PARALLEL_SIZE=8
 PORT=8000
 HOST="0.0.0.0"
@@ -151,7 +152,6 @@ uv run --no-sync vllm serve $MODEL_NAME \
     --gpu-memory-utilization $GPU_MEMORY_UTILIZATION \
     --max-num-seqs $MAX_NUM_SEQS \
     --swap-space $SWAP_SPACE \
-    --enable-reasoning \
     --reasoning-parser qwen3 \
     --trust-remote-code \
     --enable-prefix-caching \
