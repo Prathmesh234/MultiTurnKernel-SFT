@@ -66,7 +66,7 @@ fi
 
 # Deploy the Modal app
 echo "Deploying Modal app for H100 benchmarking..."
-uv run --no-sync modal deploy "$SCRIPT_DIR/modal_app.py"
+uv run --no-sync modal deploy "$SCRIPT_DIR/../modal_app.py"
 
 echo ""
 echo "Modal deployment complete!"

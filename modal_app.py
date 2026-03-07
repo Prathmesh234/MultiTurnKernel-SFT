@@ -513,7 +513,7 @@ def benchmark_kernelbench(
                                 kernel_args.append(module.weight.data)
                             if hasattr(module, 'bias') and module.bias is not None:
                                 kernel_args.append(module.bias.data)
-                        kernel_output = triton_kernel_wrapper(*kernel_args[:n_required])
+                        kernel_output = triton_kernel_wrapper(*kernel_args)
                     except Exception:
                         raise first_err  # both attempts failed; surface the original error
 
