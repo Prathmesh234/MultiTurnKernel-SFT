@@ -2,10 +2,12 @@
 Simple utilities for extracting input info from PyTorch code.
 """
 
+import json
 import tempfile
 import importlib.util
 import sys
 import os
+from pathlib import Path
 
 
 def extract_inputs(pytorch_code: str):
@@ -108,6 +110,34 @@ def pre_validate_triton_code(triton_code: str) -> str | None:
         return f"SyntaxError: {e.msg} (line {e.lineno})"
 
     return None
+
+
+def load_solved_keys(*trace_files: str) -> set[str]:
+    """
+    Load sample_keys that have already been solved from one or more trace JSON
+    files (completed and/or failed multi-turn output files).
+
+    Skips files that don't exist or are unreadable without raising.
+
+    Usage:
+        solved = load_solved_keys(OUTPUT_FILE_MULTITURN, OUTPUT_FILE_MULTITURN_FAILED)
+        if sample_key in solved:
+            continue  # skip — already done
+    """
+    solved: set[str] = set()
+    for path in trace_files:
+        p = Path(path)
+        if not p.exists():
+            continue
+        try:
+            with open(p) as f:
+                traces = json.load(f)
+            keys = {t["sample_key"] for t in traces if t.get("sample_key")}
+            solved |= keys
+            print(f"  [resume] {len(keys)} solved keys loaded from {p.name}")
+        except (json.JSONDecodeError, Exception) as e:
+            print(f"  [resume] Warning: could not read {p}: {e}")
+    return solved
 
 
 def get_shapes(pytorch_code: str):

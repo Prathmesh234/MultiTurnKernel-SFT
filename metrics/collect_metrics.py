@@ -75,8 +75,9 @@ except ImportError:
 
 # ── defaults ──────────────────────────────────────────────────────────────────
 VLLM_BASE_URL = "http://localhost:8000"
-DEFAULT_METRICS_OUTPUT = "metrics/metrics.jsonl"
-DEFAULT_PROMETHEUS_OUTPUT = "metrics/prometheus.json"
+DEFAULT_METRICS_OUTPUT = "metrics/metrics-batch8.jsonl"
+DEFAULT_PROMETHEUS_OUTPUT = "metrics/prometheus-batch8.json"
+
 DEFAULT_INTERVAL = 10  # seconds between polls
 
 # ── server configuration snapshot ─────────────────────────────────────────────
