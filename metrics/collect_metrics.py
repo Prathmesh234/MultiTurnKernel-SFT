@@ -75,8 +75,7 @@ except ImportError:
 
 # ── defaults ──────────────────────────────────────────────────────────────────
 VLLM_BASE_URL = "http://localhost:8000"
-DEFAULT_METRICS_OUTPUT = "metrics/metrics-batch16.jsonl"
-DEFAULT_PROMETHEUS_OUTPUT = "metrics/prometheus-batch16.json"
+DEFAULT_BATCH_SIZE = 16
 
 DEFAULT_INTERVAL = 10  # seconds between polls
 
@@ -856,12 +855,8 @@ def main():
         help=f"Seconds between polls (default: {DEFAULT_INTERVAL})",
     )
     parser.add_argument(
-        "--output", default=DEFAULT_METRICS_OUTPUT,
-        help=f"Output JSONL file (default: {DEFAULT_METRICS_OUTPUT})",
-    )
-    parser.add_argument(
-        "--prometheus-output", default=DEFAULT_PROMETHEUS_OUTPUT,
-        help=f"Raw Prometheus ground truth file (default: {DEFAULT_PROMETHEUS_OUTPUT})",
+        "--batch-size", type=int, default=DEFAULT_BATCH_SIZE,
+        help=f"Batch size label — auto-creates metrics/metrics-batch{{N}}/ subfolder (default: {DEFAULT_BATCH_SIZE})",
     )
     parser.add_argument(
         "--url", default=VLLM_BASE_URL,
@@ -869,10 +864,10 @@ def main():
     )
     args = parser.parse_args()
 
-    metrics_path = Path(args.output)
-    prometheus_path = Path(args.prometheus_output)
-    metrics_path.parent.mkdir(parents=True, exist_ok=True)
-    prometheus_path.parent.mkdir(parents=True, exist_ok=True)
+    batch_dir = Path(f"metrics/metrics-batch{args.batch_size}")
+    metrics_path = batch_dir / f"metrics-batch{args.batch_size}.jsonl"
+    prometheus_path = batch_dir / f"prometheus-batch{args.batch_size}.json"
+    batch_dir.mkdir(parents=True, exist_ok=True)
 
     # ── Collect system info once ─────────────────────────────────────────
     print("┌─────────────────────────────────────────────────────────────┐")

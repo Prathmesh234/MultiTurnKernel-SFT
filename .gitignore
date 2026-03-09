@@ -24,8 +24,10 @@ reasoning_traces.json
 test_*.json
 
 # Metrics — raw runtime data (large, changes every poll)
-# Only prometheus_compact.json (trimmed) is committed
+# Only *_compact.json (trimmed) and *.jsonl are committed
 metrics/prometheus.json
+metrics/metrics-batch*/prometheus-batch*.json
+!metrics/metrics-batch*/*_compact.json
 
 # uv
 .venv/
