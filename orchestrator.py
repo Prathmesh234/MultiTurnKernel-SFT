@@ -30,7 +30,7 @@ from utilities import pre_validate_triton_code, load_solved_keys
 VLLM_BASE_URL = "http://localhost:8000/v1"
 MODEL_NAME = "Qwen/Qwen3-235B-A22B-Thinking-2507-FP8"
 OUTPUT_FILE = "traces/reasoning_traces.json"
-OUTPUT_FILE_MULTITURN = "traces/reasoning_traces_qwen3_multiturn-batch-16.json"
+OUTPUT_FILE_MULTITURN = "traces/reasoning_traces_qwen3_multiturn-batch-32.json"
 MAX_MODEL_LEN = 131072  # Must match --max-model-len on vLLM server (Qwen3-235B = 131072)
 MAX_COMPLETION_TOKENS = 32768  # Upper bound; dynamically capped per request
 TEMPERATURE = 0.7
@@ -528,6 +528,9 @@ class TraceOrchestrator:
         multiturn_failed = OUTPUT_FILE_MULTITURN.replace(".json", "_failed.json")
         solved_keys = load_solved_keys(
             OUTPUT_FILE_MULTITURN, multiturn_failed,
+            # batch-16 run
+            "traces/reasoning_traces_qwen3_multiturn-batch-16.json",
+            "traces/reasoning_traces_qwen3_multiturn-batch-16_failed.json",
             # batch-8 run
             "traces/reasoning_traces_qwen3_multiturn-batch-8.json",
             "traces/reasoning_traces_qwen3_multiturn-batch-8_failed.json",
@@ -736,7 +739,7 @@ def main():
     parser.add_argument("--output", default=OUTPUT_FILE, help="Output JSON file")
     parser.add_argument("--kernelbook-samples", type=int, default=1500)
     parser.add_argument("--kernelbench-samples", type=int, default=1000)
-    parser.add_argument("--batch-size", type=int, default=16)
+    parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--save-interval", type=int, default=10)
     parser.add_argument("--multi-turn", action="store_true", help="Enable multi-turn iterative refinement")
     parser.add_argument("--max-turns", type=int, default=4, help="Max turns per sample in multi-turn mode")
