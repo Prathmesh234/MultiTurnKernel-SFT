@@ -75,7 +75,7 @@ except ImportError:
 
 # ── defaults ──────────────────────────────────────────────────────────────────
 VLLM_BASE_URL = "http://localhost:8000"
-DEFAULT_BATCH_SIZE = 16
+DEFAULT_BATCH_SIZE = 64
 
 DEFAULT_INTERVAL = 10  # seconds between polls
 
