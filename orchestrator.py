@@ -13,7 +13,6 @@ import json
 import os
 import asyncio
 import aiohttp
-from collections import deque
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -538,7 +537,9 @@ class TraceOrchestrator:
         multiturn_failed = OUTPUT_FILE_MULTITURN.replace(".json", "_failed.json")
         solved_keys = load_solved_keys(
             OUTPUT_FILE_MULTITURN, multiturn_failed,
-            # batch-128-h200s run (current — covered by first two args above)
+            # batch-128 h200 run
+            "traces/reasoning_traces_qwen3_multiturn-batch-128-h200s.json",
+            "traces/reasoning_traces_qwen3_multiturn-batch-128-h200s_failed.json",
             # batch-32 run
             "traces/reasoning_traces_qwen3_multiturn-batch-32.json",
             "traces/reasoning_traces_qwen3_multiturn-batch-32_failed.json",
