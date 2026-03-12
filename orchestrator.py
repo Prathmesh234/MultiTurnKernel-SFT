@@ -13,6 +13,7 @@ import json
 import os
 import asyncio
 import aiohttp
+from collections import deque
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -515,11 +516,20 @@ class TraceOrchestrator:
         with open(failed_path, "w") as f:
             json.dump(failed_tasks, f, indent=2, default=str)
 
-    async def run_multi_turn(self, batch_size: int = 4, max_turns: int = 4):
+    async def run_multi_turn(self, batch_size: int = 4, max_turns: int = 4, modal_parallel: int = 16):
         """
         Run multi-turn iterative refinement.
 
         Failed or slow kernels get feedback and retry up to max_turns times.
+
+        Modal validations run in parallel (up to modal_parallel at a time)
+        using Modal's .starmap() API, which spins up separate containers
+        for each call automatically.
+
+        Args:
+            batch_size: Number of concurrent vLLM generation requests per batch.
+            max_turns: Maximum refinement turns per sample.
+            modal_parallel: Max parallel Modal validation calls via .starmap().
         """
         samples = self.dataloader.load_all()
         queue = MultiTurnQueue(max_turns=max_turns)
@@ -560,7 +570,7 @@ class TraceOrchestrator:
             }
             queue.add(item)
 
-        print(f"Multi-turn queue initialized: {len(queue)} items, max_turns={max_turns}")
+        print(f"Multi-turn queue initialized: {len(queue)} items, max_turns={max_turns}, modal_parallel={modal_parallel}")
 
         with modal_app.run():
             async with aiohttp.ClientSession() as session:
@@ -577,45 +587,86 @@ class TraceOrchestrator:
                     ]
                     responses = await asyncio.gather(*gen_tasks)
 
-                    # Process each: extract, validate, route
-                    for item, response in zip(batch, responses):
+                    # Extract code locally, split into items needing Modal vs already resolved
+                    modal_items = []      # (index, item, triton_code) - need Modal validation
+                    resolved_items = []   # (index, item, result, completion, reasoning) - already resolved locally
+
+                    for idx, (item, response) in enumerate(zip(batch, responses)):
                         if not response or not response.get("content"):
-                            item["turns_history"].append({
-                                "turn": item["turn_num"],
-                                "reasoning": None,
-                                "triton_code": None,
-                                "full_completion": None,
-                                "result": {"correctness": False, "error": "Generation failed"},
-                                "feedback_given": None,
-                            })
-                            stop, reason = queue.should_stop(item["turn_num"], {"error": "Generation failed"})
-                            if stop:
-                                queue.finalize(item, reason)
-                            else:
-                                feedback = queue.build_feedback({"error": "Generation failed"})
-                                item["turns_history"][-1]["feedback_given"] = feedback
-                                queue.requeue_with_feedback(item, feedback, "")
+                            result = {"correctness": False, "error": "Generation failed"}
+                            resolved_items.append((idx, item, result, None, None))
                             continue
 
                         completion = response["content"]
                         reasoning = response.get("reasoning")
-
                         triton_code = self.extract_triton_code(completion)
 
                         if not triton_code:
                             result = {"correctness": False, "error": "Triton code extraction failed"}
+                            resolved_items.append((idx, item, result, completion, reasoning))
                         else:
-                            # Quick local checks before spending a Modal call
                             pre_error = pre_validate_triton_code(triton_code)
                             if pre_error:
                                 print(f"  {item['sample_key']} turn {item['turn_num']} pre-validation failed: {pre_error}")
                                 result = {"correctness": False, "speedup": 0.0, "error": pre_error}
+                                resolved_items.append((idx, item, result, completion, reasoning))
                             else:
-                                print(f"Validating {item['sample_key']} turn {item['turn_num']} on Modal H100...")
-                                result = await self.validate_on_modal(
-                                    triton_code, item["pytorch_code"], item["sample"]
-                                )
+                                modal_items.append((idx, item, triton_code, completion, reasoning))
 
+                    # Validate on Modal in parallel using .starmap()
+                    # Process in chunks of modal_parallel to limit concurrency
+                    modal_results = {}  # idx -> result
+                    for chunk_start in range(0, len(modal_items), modal_parallel):
+                        chunk = modal_items[chunk_start:chunk_start + modal_parallel]
+                        print(f"Validating {len(chunk)} kernels on Modal H100 in parallel...")
+
+                        starmap_inputs = [
+                            (
+                                triton_code,                                    # triton_code
+                                item["pytorch_code"],                           # pytorch_code
+                                5,                                              # n_correctness
+                                20,                                             # n_trials
+                                item["sample"].get("name", "generated_kernel"), # kernel_name
+                                item["sample"].get("entry_point", "Model"),     # entry_point
+                                1e-4,                                           # rtol
+                                1e-4,                                           # atol
+                            )
+                            for _, item, triton_code, _, _ in chunk
+                        ]
+
+                        # .starmap() runs all inputs in parallel across Modal containers
+                        # return_exceptions=True returns Exception objects instead of raising
+                        results_iter = await asyncio.to_thread(
+                            lambda inputs=starmap_inputs: list(
+                                benchmark_kernelbench.starmap(inputs, return_exceptions=True)
+                            )
+                        )
+
+                        for (idx, item, triton_code, _, _), result in zip(chunk, results_iter):
+                            if isinstance(result, Exception):
+                                modal_results[idx] = {
+                                    "correctness": False,
+                                    "speedup": 0.0,
+                                    "error": str(result),
+                                }
+                            else:
+                                modal_results[idx] = result
+
+                        print(f"  Modal chunk done ({len(chunk)} results)")
+
+                    # Route all results (resolved locally + Modal validated)
+                    all_items = []
+                    for idx, item, result, completion, reasoning in resolved_items:
+                        triton_code = None
+                        all_items.append((idx, item, result, triton_code, completion, reasoning))
+                    for idx, item, triton_code, completion, reasoning in modal_items:
+                        result = modal_results[idx]
+                        all_items.append((idx, item, result, triton_code, completion, reasoning))
+
+                    # Sort by original index to keep deterministic ordering
+                    all_items.sort(key=lambda x: x[0])
+
+                    for _, item, result, triton_code, completion, reasoning in all_items:
                         turn_result = {
                             "turn": item["turn_num"],
                             "reasoning": reasoning,
@@ -635,7 +686,7 @@ class TraceOrchestrator:
                         else:
                             feedback = queue.build_feedback(result)
                             turn_result["feedback_given"] = feedback
-                            queue.requeue_with_feedback(item, feedback, completion)
+                            queue.requeue_with_feedback(item, feedback, completion or "")
                             print(f"  {item['sample_key']} turn {item['turn_num'] - 1} -> retrying (queue size: {len(queue)})")
 
                     self._save_multiturn_traces(queue.completed_traces)
@@ -743,6 +794,7 @@ def main():
     parser.add_argument("--save-interval", type=int, default=10)
     parser.add_argument("--multi-turn", action="store_true", help="Enable multi-turn iterative refinement")
     parser.add_argument("--max-turns", type=int, default=4, help="Max turns per sample in multi-turn mode")
+    parser.add_argument("--modal-parallel", type=int, default=16, help="Max parallel Modal validation calls (default: 16)")
 
     args = parser.parse_args()
 
@@ -757,6 +809,7 @@ def main():
         asyncio.run(orchestrator.run_multi_turn(
             batch_size=args.batch_size,
             max_turns=args.max_turns,
+            modal_parallel=args.modal_parallel,
         ))
     else:
         asyncio.run(orchestrator.run(
