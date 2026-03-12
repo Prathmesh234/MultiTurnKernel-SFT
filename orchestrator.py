@@ -30,7 +30,7 @@ from utilities import pre_validate_triton_code, load_solved_keys
 VLLM_BASE_URL = "http://localhost:8000/v1"
 MODEL_NAME = "Qwen/Qwen3-235B-A22B-Thinking-2507-FP8"
 OUTPUT_FILE = "traces/reasoning_traces.json"
-OUTPUT_FILE_MULTITURN = "traces/reasoning_traces_qwen3_multiturn-batch-64.json"
+OUTPUT_FILE_MULTITURN = "traces/reasoning_traces_qwen3_multiturn-batch-128-h200s.json"
 MAX_MODEL_LEN = 131072  # Must match --max-model-len on vLLM server (Qwen3-235B = 131072)
 MAX_COMPLETION_TOKENS = 32768  # Upper bound; dynamically capped per request
 TEMPERATURE = 0.7
@@ -515,28 +515,37 @@ class TraceOrchestrator:
         with open(failed_path, "w") as f:
             json.dump(failed_tasks, f, indent=2, default=str)
 
-    async def run_multi_turn(self, batch_size: int = 4, max_turns: int = 4):
+    async def run_multi_turn(self, batch_size: int = 128, max_turns: int = 4):
         """
-        Run multi-turn iterative refinement.
+        Run multi-turn iterative refinement — async pipeline.
 
-        Failed or slow kernels get feedback and retry up to max_turns times.
+        Generation and Modal validation are decoupled: the main loop keeps
+        sending batches to vLLM while a background task pool handles Modal
+        validation. When validations finish, failed items get requeued and
+        the main loop picks them up on its next pass. No GPU idle valleys.
         """
         samples = self.dataloader.load_all()
         queue = MultiTurnQueue(max_turns=max_turns)
 
-        # Keys already solved in previous runs (completed + failed multiturn files)
+        # Keys already solved in previous runs
         multiturn_failed = OUTPUT_FILE_MULTITURN.replace(".json", "_failed.json")
         solved_keys = load_solved_keys(
             OUTPUT_FILE_MULTITURN, multiturn_failed,
+            # batch-128-h200s run (current — covered by first two args above)
+            # batch-32 run
+            "traces/reasoning_traces_qwen3_multiturn-batch-32.json",
+            "traces/reasoning_traces_qwen3_multiturn-batch-32_failed.json",
             # batch-16 run
             "traces/reasoning_traces_qwen3_multiturn-batch-16.json",
             "traces/reasoning_traces_qwen3_multiturn-batch-16_failed.json",
             # batch-8 run
             "traces/reasoning_traces_qwen3_multiturn-batch-8.json",
             "traces/reasoning_traces_qwen3_multiturn-batch-8_failed.json",
-            # batch-4 run
+            # batch-4 run (original qwen3 multiturn)
             "traces/reasoning_traces_qwen3_multiturn.json",
             "traces/reasoning_traces_qwen3_multiturn_failed.json",
+            # earlier qwen3 run
+            "traces/reasoning_traces_qwen3_multiturn-1.json",
         )
         skip_keys = self.processed_keys | solved_keys
 
@@ -560,90 +569,108 @@ class TraceOrchestrator:
             }
             queue.add(item)
 
-        print(f"Multi-turn queue initialized: {len(queue)} items, max_turns={max_turns}")
+        print(f"Async pipeline: {len(queue)} items | batch_size={batch_size} | max_turns={max_turns}")
+
+        # Background validation tasks
+        pending_validations: set[asyncio.Task] = set()
+
+        async def validate_in_background(item: dict):
+            """Background task: run Modal validation, then let queue route the result."""
+            try:
+                state = item["_validation_state"]
+                triton_code = state["triton_code"]
+
+                if not triton_code:
+                    result = {"correctness": False, "error": "Triton extraction failed"}
+                else:
+                    pre_error = pre_validate_triton_code(triton_code)
+                    if pre_error:
+                        result = {"correctness": False, "speedup": 0.0, "error": pre_error}
+                    else:
+                        result = await self.validate_on_modal(
+                            triton_code, item["pytorch_code"], item["sample"]
+                        )
+            except Exception as e:
+                result = {"correctness": False, "speedup": 0.0,
+                          "error": f"Validation crash: {type(e).__name__}: {e}"}
+
+            done_key = queue.resolve_validation(item, result)
+            if done_key:
+                correctness = result.get("correctness", False)
+                speedup = result.get("speedup", 0)
+                print(f"  {done_key} DONE: correct={correctness}, "
+                      f"speedup={speedup:.2f}x, turns={item['turn_num']}")
+            else:
+                print(f"  {item['sample_key']} turn {item['turn_num'] - 1} -> requeued | "
+                      f"queue={len(queue)}")
+
+            self._save_multiturn_traces(queue.completed_traces)
+            if queue.failed_tasks:
+                self._save_failed_tasks(queue.failed_tasks)
 
         with modal_app.run():
             async with aiohttp.ClientSession() as session:
-                while len(queue) > 0:
-                    # Pop a batch
-                    batch = []
-                    for _ in range(min(batch_size, len(queue))):
-                        batch.append(queue.pop())
+                while len(queue) > 0 or pending_validations:
+                    if len(queue) > 0:
+                        # Pop a batch
+                        batch = []
+                        for _ in range(min(batch_size, len(queue))):
+                            batch.append(queue.pop())
 
-                    # Generate completions concurrently
-                    gen_tasks = [
-                        self.generate_completion(item["messages"], session)
-                        for item in batch
-                    ]
-                    responses = await asyncio.gather(*gen_tasks)
+                        # Generate completions concurrently on vLLM
+                        responses = await asyncio.gather(*[
+                            self.generate_completion(item["messages"], session)
+                            for item in batch
+                        ])
 
-                    # Process each: extract, validate, route
-                    for item, response in zip(batch, responses):
-                        if not response or not response.get("content"):
-                            item["turns_history"].append({
-                                "turn": item["turn_num"],
-                                "reasoning": None,
-                                "triton_code": None,
-                                "full_completion": None,
-                                "result": {"correctness": False, "error": "Generation failed"},
-                                "feedback_given": None,
-                            })
-                            stop, reason = queue.should_stop(item["turn_num"], {"error": "Generation failed"})
-                            if stop:
-                                queue.finalize(item, reason)
-                            else:
-                                feedback = queue.build_feedback({"error": "Generation failed"})
-                                item["turns_history"][-1]["feedback_given"] = feedback
-                                queue.requeue_with_feedback(item, feedback, "")
-                            continue
+                        # Extract code, fire validations in background
+                        for item, response in zip(batch, responses):
+                            completion = (response or {}).get("content", "")
+                            reasoning = (response or {}).get("reasoning")
 
-                        completion = response["content"]
-                        reasoning = response.get("reasoning")
+                            if not response or not completion:
+                                # Fail fast — no Modal needed
+                                item["turns_history"].append({
+                                    "turn": item["turn_num"],
+                                    "reasoning": None,
+                                    "triton_code": None,
+                                    "full_completion": None,
+                                    "result": {"correctness": False, "error": "Generation failed"},
+                                    "feedback_given": None,
+                                })
+                                stop, reason = queue.should_stop(item["turn_num"], {"error": "Generation failed"})
+                                if stop:
+                                    queue.finalize(item, reason)
+                                else:
+                                    feedback = queue.build_feedback({"error": "Generation failed"})
+                                    item["turns_history"][-1]["feedback_given"] = feedback
+                                    queue.requeue_with_feedback(item, feedback, "")
+                                continue
 
-                        triton_code = self.extract_triton_code(completion)
+                            triton_code = self.extract_triton_code(completion)
 
-                        if not triton_code:
-                            result = {"correctness": False, "error": "Triton code extraction failed"}
-                        else:
-                            # Quick local checks before spending a Modal call
-                            pre_error = pre_validate_triton_code(triton_code)
-                            if pre_error:
-                                print(f"  {item['sample_key']} turn {item['turn_num']} pre-validation failed: {pre_error}")
-                                result = {"correctness": False, "speedup": 0.0, "error": pre_error}
-                            else:
-                                print(f"Validating {item['sample_key']} turn {item['turn_num']} on Modal H100...")
-                                result = await self.validate_on_modal(
-                                    triton_code, item["pytorch_code"], item["sample"]
-                                )
+                            # Submit to queue + fire background validation
+                            queue.submit_for_validation(item, triton_code, completion, reasoning)
+                            task = asyncio.create_task(validate_in_background(item))
+                            pending_validations.add(task)
+                            task.add_done_callback(pending_validations.discard)
 
-                        turn_result = {
-                            "turn": item["turn_num"],
-                            "reasoning": reasoning,
-                            "triton_code": triton_code,
-                            "full_completion": completion,
-                            "result": result,
-                            "feedback_given": None,
-                        }
-                        item["turns_history"].append(turn_result)
+                        print(f"Batch sent ({len(batch)}) | "
+                              f"validating={queue.pending_validation_count} | "
+                              f"queue={len(queue)} | "
+                              f"done={len(queue.completed_traces)}")
+                    else:
+                        # Queue empty — wait for validations to potentially refill it
+                        await asyncio.wait(
+                            list(pending_validations),
+                            return_when=asyncio.FIRST_COMPLETED,
+                        )
 
-                        stop, reason = queue.should_stop(item["turn_num"], result)
-                        if stop:
-                            queue.finalize(item, reason)
-                            correctness = result.get("correctness", False)
-                            speedup = result.get("speedup", 0.0)
-                            print(f"  {item['sample_key']} DONE ({reason}): correct={correctness}, speedup={speedup:.2f}x, turns={item['turn_num']}")
-                        else:
-                            feedback = queue.build_feedback(result)
-                            turn_result["feedback_given"] = feedback
-                            queue.requeue_with_feedback(item, feedback, completion)
-                            print(f"  {item['sample_key']} turn {item['turn_num'] - 1} -> retrying (queue size: {len(queue)})")
+        # Final save + summary
+        self._save_multiturn_traces(queue.completed_traces)
+        if queue.failed_tasks:
+            self._save_failed_tasks(queue.failed_tasks)
 
-                    self._save_multiturn_traces(queue.completed_traces)
-                    if queue.failed_tasks:
-                        self._save_failed_tasks(queue.failed_tasks)
-                    print(f"Saved {len(queue.completed_traces)} traces | Failed/requeued: {len(queue.failed_tasks)} | Queue remaining: {len(queue)}")
-
-        # Print summary
         traces = queue.completed_traces
         success_count = sum(1 for t in traces if t.get("stop_reason") == "success_fast")
         print("\n" + "=" * 60)
@@ -737,9 +764,9 @@ def main():
     parser = argparse.ArgumentParser(description="Generate reasoning traces for Triton kernels")
     parser.add_argument("--vllm-url", default=VLLM_BASE_URL, help="vLLM server URL")
     parser.add_argument("--output", default=OUTPUT_FILE, help="Output JSON file")
-    parser.add_argument("--kernelbook-samples", type=int, default=1500)
-    parser.add_argument("--kernelbench-samples", type=int, default=1000)
-    parser.add_argument("--batch-size", type=int, default=64)
+    parser.add_argument("--kernelbook-samples", type=int, default=3000)
+    parser.add_argument("--kernelbench-samples", type=int, default=500)
+    parser.add_argument("--batch-size", type=int, default=128)
     parser.add_argument("--save-interval", type=int, default=10)
     parser.add_argument("--multi-turn", action="store_true", help="Enable multi-turn iterative refinement")
     parser.add_argument("--max-turns", type=int, default=4, help="Max turns per sample in multi-turn mode")

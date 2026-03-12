@@ -75,7 +75,7 @@ except ImportError:
 
 # ── defaults ──────────────────────────────────────────────────────────────────
 VLLM_BASE_URL = "http://localhost:8000"
-DEFAULT_BATCH_SIZE = 64
+DEFAULT_BATCH_SIZE = 128
 
 DEFAULT_INTERVAL = 10  # seconds between polls
 
@@ -89,7 +89,7 @@ SERVER_CONFIG = {
     "expert_parallel": True,
     "max_model_len": 131072,
     "gpu_memory_utilization": 0.92,
-    "max_num_seqs": 64,
+    "max_num_seqs": 128,
     "swap_space_gb": 16,
     "reasoning_parser": "qwen3",
     "prefix_caching": True,
@@ -859,14 +859,19 @@ def main():
         help=f"Batch size label — auto-creates metrics/metrics-batch{{N}}/ subfolder (default: {DEFAULT_BATCH_SIZE})",
     )
     parser.add_argument(
+        "--suffix", type=str, default="",
+        help="Optional suffix appended to the batch folder/file name (e.g. 'h200s' → metrics-batch128-h200s)",
+    )
+    parser.add_argument(
         "--url", default=VLLM_BASE_URL,
         help=f"vLLM base URL (default: {VLLM_BASE_URL})",
     )
     args = parser.parse_args()
 
-    batch_dir = Path(f"metrics/metrics-batch{args.batch_size}")
-    metrics_path = batch_dir / f"metrics-batch{args.batch_size}.jsonl"
-    prometheus_path = batch_dir / f"prometheus-batch{args.batch_size}.json"
+    batch_label = f"batch{args.batch_size}" + (f"-{args.suffix}" if args.suffix else "")
+    batch_dir = Path(f"metrics/metrics-{batch_label}")
+    metrics_path = batch_dir / f"metrics-{batch_label}.jsonl"
+    prometheus_path = batch_dir / f"prometheus-{batch_label}_compact.json"
     batch_dir.mkdir(parents=True, exist_ok=True)
 
     # ── Collect system info once ─────────────────────────────────────────
