@@ -31,7 +31,7 @@ from utilities import pre_validate_triton_code, load_solved_keys
 VLLM_BASE_URL = "http://localhost:8000/v1"
 MODEL_NAME = "Qwen/Qwen3-235B-A22B-Thinking-2507-FP8"
 OUTPUT_FILE = "traces/reasoning_traces.json"
-OUTPUT_FILE_MULTITURN = "traces/reasoning_traces_qwen3_multiturn-batch-64.json"
+OUTPUT_FILE_MULTITURN = "traces/reasoning_traces_qwen3_multiturn-batch-128-h200s.json"
 MAX_MODEL_LEN = 131072  # Must match --max-model-len on vLLM server (Qwen3-235B = 131072)
 MAX_COMPLETION_TOKENS = 32768  # Upper bound; dynamically capped per request
 TEMPERATURE = 0.7
@@ -518,7 +518,7 @@ class TraceOrchestrator:
 
     async def run_multi_turn(self, batch_size: int = 4, max_turns: int = 4, modal_parallel: int = 16):
         """
-        Run multi-turn iterative refinement.
+        Run multi-turn iterative refinement — async pipeline.
 
         Failed or slow kernels get feedback and retry up to max_turns times.
 
@@ -534,19 +534,25 @@ class TraceOrchestrator:
         samples = self.dataloader.load_all()
         queue = MultiTurnQueue(max_turns=max_turns)
 
-        # Keys already solved in previous runs (completed + failed multiturn files)
+        # Keys already solved in previous runs
         multiturn_failed = OUTPUT_FILE_MULTITURN.replace(".json", "_failed.json")
         solved_keys = load_solved_keys(
             OUTPUT_FILE_MULTITURN, multiturn_failed,
+            # batch-128-h200s run (current — covered by first two args above)
+            # batch-32 run
+            "traces/reasoning_traces_qwen3_multiturn-batch-32.json",
+            "traces/reasoning_traces_qwen3_multiturn-batch-32_failed.json",
             # batch-16 run
             "traces/reasoning_traces_qwen3_multiturn-batch-16.json",
             "traces/reasoning_traces_qwen3_multiturn-batch-16_failed.json",
             # batch-8 run
             "traces/reasoning_traces_qwen3_multiturn-batch-8.json",
             "traces/reasoning_traces_qwen3_multiturn-batch-8_failed.json",
-            # batch-4 run
+            # batch-4 run (original qwen3 multiturn)
             "traces/reasoning_traces_qwen3_multiturn.json",
             "traces/reasoning_traces_qwen3_multiturn_failed.json",
+            # earlier qwen3 run
+            "traces/reasoning_traces_qwen3_multiturn-1.json",
         )
         skip_keys = self.processed_keys | solved_keys
 
@@ -574,18 +580,18 @@ class TraceOrchestrator:
 
         with modal_app.run():
             async with aiohttp.ClientSession() as session:
-                while len(queue) > 0:
-                    # Pop a batch
-                    batch = []
-                    for _ in range(min(batch_size, len(queue))):
-                        batch.append(queue.pop())
+                while len(queue) > 0 or pending_validations:
+                    if len(queue) > 0:
+                        # Pop a batch
+                        batch = []
+                        for _ in range(min(batch_size, len(queue))):
+                            batch.append(queue.pop())
 
-                    # Generate completions concurrently
-                    gen_tasks = [
-                        self.generate_completion(item["messages"], session)
-                        for item in batch
-                    ]
-                    responses = await asyncio.gather(*gen_tasks)
+                        # Generate completions concurrently on vLLM
+                        responses = await asyncio.gather(*[
+                            self.generate_completion(item["messages"], session)
+                            for item in batch
+                        ])
 
                     # Extract code locally, split into items needing Modal vs already resolved
                     modal_items = []      # (index, item, triton_code) - need Modal validation
@@ -689,12 +695,6 @@ class TraceOrchestrator:
                             queue.requeue_with_feedback(item, feedback, completion or "")
                             print(f"  {item['sample_key']} turn {item['turn_num'] - 1} -> retrying (queue size: {len(queue)})")
 
-                    self._save_multiturn_traces(queue.completed_traces)
-                    if queue.failed_tasks:
-                        self._save_failed_tasks(queue.failed_tasks)
-                    print(f"Saved {len(queue.completed_traces)} traces | Failed/requeued: {len(queue.failed_tasks)} | Queue remaining: {len(queue)}")
-
-        # Print summary
         traces = queue.completed_traces
         success_count = sum(1 for t in traces if t.get("stop_reason") == "success_fast")
         print("\n" + "=" * 60)
@@ -788,9 +788,9 @@ def main():
     parser = argparse.ArgumentParser(description="Generate reasoning traces for Triton kernels")
     parser.add_argument("--vllm-url", default=VLLM_BASE_URL, help="vLLM server URL")
     parser.add_argument("--output", default=OUTPUT_FILE, help="Output JSON file")
-    parser.add_argument("--kernelbook-samples", type=int, default=1500)
-    parser.add_argument("--kernelbench-samples", type=int, default=1000)
-    parser.add_argument("--batch-size", type=int, default=64)
+    parser.add_argument("--kernelbook-samples", type=int, default=3000)
+    parser.add_argument("--kernelbench-samples", type=int, default=500)
+    parser.add_argument("--batch-size", type=int, default=128)
     parser.add_argument("--save-interval", type=int, default=10)
     parser.add_argument("--multi-turn", action="store_true", help="Enable multi-turn iterative refinement")
     parser.add_argument("--max-turns", type=int, default=4, help="Max turns per sample in multi-turn mode")

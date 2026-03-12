@@ -39,6 +39,7 @@ class MultiTurnQueue:
         self.queue: deque[dict] = deque()
         self.completed_traces: list[dict] = []
         self.failed_tasks: list[dict] = []
+        self._pending_validation_count: int = 0
 
     def add(self, item: dict):
         """Push an item onto the deque."""
@@ -75,6 +76,52 @@ class MultiTurnQueue:
             return FEEDBACK_NEEDS_OPTIMIZATION.format(speedup=speedup)
         else:
             return "Great work! The kernel is correct and fast."
+
+    @property
+    def pending_validation_count(self) -> int:
+        """Number of items currently awaiting Modal validation."""
+        return self._pending_validation_count
+
+    def submit_for_validation(self, item: dict, triton_code, completion: str, reasoning):
+        """Mark an item as awaiting Modal validation (no blocking).
+
+        The orchestrator fires the actual Modal call as a background task
+        and calls resolve_validation() when it finishes.
+        """
+        item["_validation_state"] = {
+            "triton_code": triton_code,
+            "completion": completion,
+            "reasoning": reasoning,
+        }
+        self._pending_validation_count += 1
+
+    def resolve_validation(self, item: dict, result: dict) -> str | None:
+        """Process a Modal validation result: finalize or requeue.
+
+        Returns the sample_key if finalized, None if requeued.
+        """
+        state = item.pop("_validation_state")
+        self._pending_validation_count -= 1
+
+        turn_result = {
+            "turn": item["turn_num"],
+            "reasoning": state["reasoning"],
+            "triton_code": state["triton_code"],
+            "full_completion": state["completion"],
+            "result": result,
+            "feedback_given": None,
+        }
+        item["turns_history"].append(turn_result)
+
+        stop, reason = self.should_stop(item["turn_num"], result)
+        if stop:
+            self.finalize(item, reason)
+            return item["sample_key"]
+        else:
+            feedback = self.build_feedback(result)
+            turn_result["feedback_given"] = feedback
+            self.requeue_with_feedback(item, feedback, state["completion"])
+            return None
 
     def requeue_with_feedback(self, item: dict, feedback: str, completion: str):
         """Append assistant response + feedback to messages and re-queue.
