@@ -30,7 +30,7 @@ from utilities import pre_validate_triton_code, load_solved_keys
 VLLM_BASE_URL = "http://localhost:8000/v1"
 MODEL_NAME = "Qwen/Qwen3-235B-A22B-Thinking-2507-FP8"
 OUTPUT_FILE = "traces/reasoning_traces.json"
-OUTPUT_FILE_MULTITURN = "traces/reasoning_traces_qwen3_multiturn-batch-128-h200s.json"
+OUTPUT_FILE_MULTITURN = "traces/reasoning_traces_qwen3_multiturn-batch-128-h200s-2.json"
 MAX_MODEL_LEN = 131072  # Must match --max-model-len on vLLM server (Qwen3-235B = 131072)
 MAX_COMPLETION_TOKENS = 32768  # Upper bound; dynamically capped per request
 TEMPERATURE = 0.7
@@ -515,6 +515,36 @@ class TraceOrchestrator:
         with open(failed_path, "w") as f:
             json.dump(failed_tasks, f, indent=2, default=str)
 
+    def _save_incomplete_traces(self, queue):
+        """Save in-progress items (mid-turn) so progress isn't lost on kill.
+
+        Only includes items that have at least one turn of history.
+        Items that are finalized (DONE) are NOT here — they live in the
+        main output file. This file is overwritten every batch cycle so
+        completed items are automatically removed.
+        """
+        incomplete_dir = Path("incomplete")
+        incomplete_dir.mkdir(exist_ok=True)
+        incomplete = []
+        for item in queue.queue:
+            if not item.get("turns_history"):
+                continue
+            incomplete.append({
+                "sample_key": item["sample_key"],
+                "source": item["sample"].get("source"),
+                "level": item["sample"].get("level"),
+                "name": item["sample"].get("name"),
+                "problem_id": item["sample"].get("problem_id"),
+                "pytorch_code": item["pytorch_code"],
+                "current_turn": item["turn_num"],
+                "turns": item["turns_history"],
+                "full_messages": item["messages"],
+                "status": "incomplete",
+                "timestamp": datetime.now().isoformat(),
+            })
+        with open(incomplete_dir / "incomplete_traces.json", "w") as f:
+            json.dump(incomplete, f, indent=2, default=str)
+
     async def run_multi_turn(self, batch_size: int = 4, max_turns: int = 4, modal_parallel: int = 16):
         """
         Run multi-turn iterative refinement — async pipeline.
@@ -532,6 +562,12 @@ class TraceOrchestrator:
         """
         samples = self.dataloader.load_all()
         queue = MultiTurnQueue(max_turns=max_turns)
+
+        # Create output file immediately so it exists from the start
+        Path(OUTPUT_FILE_MULTITURN).parent.mkdir(parents=True, exist_ok=True)
+        if not Path(OUTPUT_FILE_MULTITURN).exists():
+            with open(OUTPUT_FILE_MULTITURN, "w") as f:
+                json.dump([], f)
 
         # Keys already solved in previous runs
         multiturn_failed = OUTPUT_FILE_MULTITURN.replace(".json", "_failed.json")
@@ -645,7 +681,7 @@ class TraceOrchestrator:
                         # return_exceptions=True returns Exception objects instead of raising
                         results_iter = await asyncio.to_thread(
                             lambda inputs=starmap_inputs: list(
-                                benchmark_kernelbench.starmap(inputs, return_exceptions=True)
+                                benchmark_kernelbench.starmap(inputs, return_exceptions=True, wrap_returned_exceptions=False)
                             )
                         )
 
@@ -690,11 +726,18 @@ class TraceOrchestrator:
                             correctness = result.get("correctness", False)
                             speedup = result.get("speedup", 0.0)
                             print(f"  {item['sample_key']} DONE ({reason}): correct={correctness}, speedup={speedup:.2f}x, turns={item['turn_num']}")
+                            # Save immediately on every finalization
+                            self._save_multiturn_traces(queue.completed_traces)
+                            if queue.failed_tasks:
+                                self._save_failed_tasks(queue.failed_tasks)
                         else:
                             feedback = queue.build_feedback(result)
                             turn_result["feedback_given"] = feedback
                             queue.requeue_with_feedback(item, feedback, completion or "")
                             print(f"  {item['sample_key']} turn {item['turn_num'] - 1} -> retrying (queue size: {len(queue)})")
+
+                    # Save incomplete (mid-turn) items still in queue
+                    self._save_incomplete_traces(queue)
 
         traces = queue.completed_traces
         success_count = sum(1 for t in traces if t.get("stop_reason") == "success_fast")
@@ -795,7 +838,7 @@ def main():
     parser.add_argument("--save-interval", type=int, default=10)
     parser.add_argument("--multi-turn", action="store_true", help="Enable multi-turn iterative refinement")
     parser.add_argument("--max-turns", type=int, default=4, help="Max turns per sample in multi-turn mode")
-    parser.add_argument("--modal-parallel", type=int, default=16, help="Max parallel Modal validation calls (default: 16)")
+    parser.add_argument("--modal-parallel", type=int, default=32, help="Max parallel Modal validation calls (default: 32)")
 
     args = parser.parse_args()
 
