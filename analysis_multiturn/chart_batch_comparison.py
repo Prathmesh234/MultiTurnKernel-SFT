@@ -23,30 +23,30 @@ import numpy as np
 
 # ── Style ──────────────────────────────────────────────────────────────────────
 SEMIANALYSIS_STYLE = {
-    "figure.facecolor": "#0f0f13",
-    "axes.facecolor": "#16161e",
-    "axes.edgecolor": "#2a2a3a",
-    "axes.labelcolor": "#c8c8d8",
-    "axes.titlecolor": "#e8e8f0",
+    "figure.facecolor": "#f7f6f2",
+    "axes.facecolor": "#efeeea",
+    "axes.edgecolor": "#c8c4bc",
+    "axes.labelcolor": "#2a2a3a",
+    "axes.titlecolor": "#1a1a28",
     "axes.grid": True,
-    "grid.color": "#2a2a3a",
+    "grid.color": "#d8d4cc",
     "grid.linewidth": 0.6,
-    "xtick.color": "#8888a0",
-    "ytick.color": "#8888a0",
-    "text.color": "#c8c8d8",
-    "legend.facecolor": "#1e1e2a",
-    "legend.edgecolor": "#3a3a4a",
-    "legend.labelcolor": "#c8c8d8",
+    "xtick.color": "#4a4a5a",
+    "ytick.color": "#4a4a5a",
+    "text.color": "#2a2a3a",
+    "legend.facecolor": "#f0efe9",
+    "legend.edgecolor": "#c0bbb0",
+    "legend.labelcolor": "#2a2a3a",
     "font.family": "sans-serif",
     "font.size": 11,
 }
 
 BATCH_COLORS = {
-    4:  "#4e9af1",   # blue
-    8:  "#f1c94e",   # amber
-    16: "#4ef1a0",   # green
-    32: "#f14e4e",   # red
-    64: "#c44ef1",   # purple (future)
+    4:  "#7eb8f7",   # soft blue
+    8:  "#f7d97e",   # soft amber
+    16: "#7ef7b8",   # soft green
+    32: "#f78e8e",   # soft red
+    64: "#d4a0f7",   # soft purple (future)
 }
 
 BATCH_SIZES = [4, 8, 16, 32]
@@ -117,12 +117,20 @@ def load_all(root: Path) -> dict:
 
 # ── Aggregated summary per batch ───────────────────────────────────────────────
 
-def summarise(im_list: list[dict]) -> dict:
-    throughputs = [x["output_throughput_tok_per_sec"] for x in im_list
-                   if isinstance(x.get("output_throughput_tok_per_sec"), (int, float))
-                   and x["output_throughput_tok_per_sec"] > 5]
+def summarise(im_list: list[dict], min_throughput: float = 10.0) -> dict:
+    # Drop idle/startup polls where the engine has no active requests.
+    # This removes Modal container cold-start gaps and between-batch idle periods
+    # that would otherwise drag down all averages toward zero.
+    im_list = [
+        x for x in im_list
+        if (x.get("requests_running") or 0) > 0
+        and (x.get("output_throughput_tok_per_sec") or 0) >= min_throughput
+    ]
 
-    active = [x for x in im_list if (x.get("requests_running") or 0) > 0]
+    throughputs = [x["output_throughput_tok_per_sec"] for x in im_list
+                   if isinstance(x.get("output_throughput_tok_per_sec"), (int, float))]
+
+    active = im_list  # already filtered to active records above
 
     return {
         # throughput
@@ -165,7 +173,7 @@ def apply_style():
     plt.rcParams.update(SEMIANALYSIS_STYLE)
 
 
-def label_bars(ax, bars, fmt="{:.0f}", color="#c8c8d8", fontsize=9, offset=3):
+def label_bars(ax, bars, fmt="{:.0f}", color="#2a2a3a", fontsize=9, offset=3):
     for bar in bars:
         h = bar.get_height()
         if h and h > 0:
@@ -183,12 +191,12 @@ def spine_off(ax):
         spine.set_visible(False)
 
 
-def add_annotation(ax, text, xy, xytext, color="#f1c94e"):
+def add_annotation(ax, text, xy, xytext, color="#b06000"):
     ax.annotate(
         text, xy=xy, xytext=xytext,
         arrowprops=dict(arrowstyle="->", color=color, lw=1.2),
         fontsize=8.5, color=color,
-        bbox=dict(boxstyle="round,pad=0.3", fc="#1e1e2a", ec=color, lw=0.8),
+        bbox=dict(boxstyle="round,pad=0.3", fc="#fffbf0", ec=color, lw=0.8),
     )
 
 
@@ -226,53 +234,51 @@ def plot_interactivity_vs_throughput(ax, summaries, data_all):
     # Pareto frontier line (B=8 → B=16 → B=32)
     order = np.argsort(pareto_xs)
     ax.plot([pareto_xs[i] for i in order], [pareto_ys[i] for i in order],
-            color="#6060a0", linewidth=2.0, linestyle="--", zorder=1, alpha=0.9,
+            color="#7070b0", linewidth=2.0, linestyle="--", zorder=1, alpha=0.8,
             label="Pareto frontier")
 
     # Pareto points
     for x, y, bs in zip(pareto_xs, pareto_ys, pareto_bs):
         ax.scatter(x, y, color=BATCH_COLORS[bs], s=260, zorder=5,
-                   edgecolors="#ffffff44", linewidths=1.2)
-        ax.text(x + 0.3, y + 18, f"B={bs}", color=BATCH_COLORS[bs],
+                   edgecolors="#00000033", linewidths=1.2)
+        ax.text(x + 0.3, y + 18, f"B={bs}", color="#1a1a2a",
                 fontsize=10, fontweight="bold", va="bottom")
 
     # Dominated points (dimmed, dashed border)
     for x, y, bs in zip(dom_xs, dom_ys, dom_bs):
         ax.scatter(x, y, color=BATCH_COLORS[bs], s=200, zorder=4,
-                   edgecolors="#f1c94e", linewidths=1.5,
-                   alpha=0.6, marker="D")
+                   edgecolors="#b06000", linewidths=1.5,
+                   alpha=0.7, marker="D")
         ax.text(x + 0.3, y + 18, f"B={bs}\n(under-\nloaded)",
-                color=BATCH_COLORS[bs], fontsize=8, va="bottom", alpha=0.75)
+                color="#555566", fontsize=8, va="bottom")
 
     # Arrow from dominated point showing it's strictly dominated by B=8
     if dom_xs and pareto_xs:
         bx, by = dom_xs[0], dom_ys[0]   # B=4
-        # find B=8 point
         b8_idx = pareto_bs.index(8) if 8 in pareto_bs else 0
         px, py = pareto_xs[b8_idx], pareto_ys[b8_idx]
         ax.annotate("",
             xy=(px - 0.5, py - 20), xytext=(bx + 1, by + 20),
-            arrowprops=dict(arrowstyle="-|>", color="#f1c94e",
+            arrowprops=dict(arrowstyle="-|>", color="#b06000",
                             lw=1.4, connectionstyle="arc3,rad=0.25"),
             zorder=6)
         ax.text((bx + px) / 2 - 5, (by + py) / 2 + 60,
                 "B=8 dominates B=4\n(↑ throughput  +  ↑ interactivity)",
-                color="#f1c94e", fontsize=8.5, ha="center",
-                bbox=dict(boxstyle="round,pad=0.3", fc="#1e1e2a", ec="#f1c94e", lw=0.8))
+                color="#b06000", fontsize=8.5, ha="center",
+                bbox=dict(boxstyle="round,pad=0.3", fc="#fffbf0", ec="#b06000", lw=0.8))
 
     # 50 tok/s reference
-    ax.axvline(50, color="#ffffff18", lw=1, linestyle=":")
-    ax.text(50.2, 30, "50 tok/s/user\n(comfortable reading)", color="#ffffff45", fontsize=7.5)
+    ax.axvline(50, color="#00000025", lw=1, linestyle=":")
+    ax.text(50.2, 30, "50 tok/s/user\n(comfortable reading)", color="#777788", fontsize=7.5)
 
     # Explain why B=4 is off-frontier in a text box
     ax.text(0.02, 0.97,
         "Why B=4 is off the frontier:\n"
         "GPU only 53% utilised (avg 2.6 req running).\n"
-        "Frequent prefill preemptions inflate TPOT.\n"
         "B=8 wins on both axes → B=4 is dominated.",
         transform=ax.transAxes, fontsize=8, va="top", ha="left",
-        color="#aaaacc",
-        bbox=dict(boxstyle="round,pad=0.4", fc="#0f0f1a", ec="#3a3a6a", lw=0.8))
+        color="#444455",
+        bbox=dict(boxstyle="round,pad=0.4", fc="#e8e7e0", ec="#aaa8a0", lw=0.8))
 
     ax.set_xlabel("Interactivity  (1/TPOT_p50,  tok/s per user)  ←  more responsive", fontsize=11)
     ax.set_ylabel("Aggregate Output Throughput  (tok/s)  ↑  more capacity", fontsize=11)
@@ -329,8 +335,8 @@ def plot_interactivity_vs_throughput(ax, summaries, data_all):
         full_text = "\n".join(table_lines)
         ax.text(0.01, 0.99, full_text,
                 transform=ax.transAxes, fontsize=7.5, va="top", ha="left",
-                fontfamily="monospace", color="#b8b8d0",
-                bbox=dict(boxstyle="round,pad=0.5", fc="#0b0b16", ec="#2a2a4a", lw=0.9, alpha=0.95))
+                fontfamily="monospace", color="#2a2a3a",
+                bbox=dict(boxstyle="round,pad=0.5", fc="#e8e7e0", ec="#aaa8a0", lw=0.9, alpha=0.95))
 
         # Draw small colored squares next to batch column headers using ax.transAxes
         # We place them as small patches aligned with the text
@@ -374,8 +380,8 @@ def plot_ttft(ax, summaries):
     spine_off(ax)
 
     # Reference line: ~2s is comfortable for interactive use
-    ax.axhline(2.0, color="#f1c94e", lw=1, linestyle="--", alpha=0.6)
-    ax.text(len(bs_list) - 0.5, 2.1, "2s threshold", color="#f1c94e", fontsize=8, ha="right")
+    ax.axhline(2.0, color="#b06000", lw=1, linestyle="--", alpha=0.6)
+    ax.text(len(bs_list) - 0.5, 2.1, "2s threshold", color="#b06000", fontsize=8, ha="right")
 
 
 def plot_throughput_bars(ax, summaries):
@@ -390,12 +396,12 @@ def plot_throughput_bars(ax, summaries):
     err_hi = [h - m for m, h in zip(medians, p75)]
 
     bars = ax.bar(x, medians, color=[BATCH_COLORS[bs] for bs in bs_list], alpha=0.9,
-                  yerr=[err_lo, err_hi], error_kw=dict(ecolor="#ffffff60", capsize=5, lw=1.5))
+                  yerr=[err_lo, err_hi], error_kw=dict(ecolor="#00000050", capsize=5, lw=1.5))
 
     for bar, val in zip(bars, medians):
         ax.text(bar.get_x() + bar.get_width() / 2, val + 15,
                 f"{val:.0f}", ha="center", va="bottom", fontsize=9,
-                color="#c8c8d8", fontweight="bold")
+                color="#2a2a3a", fontweight="bold")
 
     ax.set_xticks(x)
     ax.set_xticklabels([f"B={bs}" for bs in bs_list])
@@ -423,10 +429,10 @@ def plot_interactivity_bands(ax, summaries):
            color=[BATCH_COLORS[bs] for bs in bs_list], alpha=0.35)
 
     # Speech-quality reference
-    ax.axhline(15, color="#f14e4e", lw=1, linestyle="--", alpha=0.7)
-    ax.text(len(bs_list) - 0.3, 16, "15 tok/s — speech minimum", color="#f14e4e", fontsize=8, ha="right")
-    ax.axhline(50, color="#4ef1a0", lw=1, linestyle="--", alpha=0.7)
-    ax.text(len(bs_list) - 0.3, 51, "50 tok/s — comfortable reading", color="#4ef1a0", fontsize=8, ha="right")
+    ax.axhline(15, color="#cc3333", lw=1, linestyle="--", alpha=0.7)
+    ax.text(len(bs_list) - 0.3, 16, "15 tok/s — speech minimum", color="#cc3333", fontsize=8, ha="right")
+    ax.axhline(50, color="#228855", lw=1, linestyle="--", alpha=0.7)
+    ax.text(len(bs_list) - 0.3, 51, "50 tok/s — comfortable reading", color="#228855", fontsize=8, ha="right")
 
     ax.set_xticks(x)
     ax.set_xticklabels([f"B={bs}" for bs in bs_list])
@@ -446,7 +452,7 @@ def plot_gpu_util_and_power(ax1, ax2, summaries):
     bars1 = ax1.bar(x, utils, color=colors, alpha=0.9)
     label_bars(ax1, bars1, fmt="{:.0f}%", offset=0.5)
     ax1.set_ylim(0, 115)
-    ax1.axhline(100, color="#ffffff30", lw=0.8, linestyle="--")
+    ax1.axhline(100, color="#00000025", lw=0.8, linestyle="--")
     ax1.set_xticks(x); ax1.set_xticklabels([f"B={bs}" for bs in bs_list])
     ax1.set_ylabel("Avg GPU Utilisation (%)")
     ax1.set_title("GPU Utilisation")
@@ -459,8 +465,8 @@ def plot_gpu_util_and_power(ax1, ax2, summaries):
     ax2.set_ylabel("Total System Power Draw (W)")
     ax2.set_title("Power Draw  (8× H100)")
     # max power line: 8 × 700W
-    ax2.axhline(5600, color="#f14e4e", lw=1, linestyle="--", alpha=0.6)
-    ax2.text(0, 5650, "TDP limit (8×700W)", color="#f14e4e", fontsize=8)
+    ax2.axhline(5600, color="#cc3333", lw=1, linestyle="--", alpha=0.6)
+    ax2.text(0, 5650, "TDP limit (8×700W)", color="#cc3333", fontsize=8)
     spine_off(ax2)
 
 
@@ -475,7 +481,7 @@ def plot_efficiency(ax, summaries):
     for bar, val in zip(bars, tpw):
         ax.text(bar.get_x() + bar.get_width() / 2, val + 0.002,
                 f"{val:.3f}", ha="center", va="bottom", fontsize=9,
-                color="#c8c8d8", fontweight="bold")
+                color="#2a2a3a", fontweight="bold")
 
     ax.set_xticks(x)
     ax.set_xticklabels([f"B={bs}" for bs in bs_list])
@@ -488,8 +494,8 @@ def plot_efficiency(ax, summaries):
         ratio = tpw[-1] / tpw[0]
         ax.text(len(bs_list) / 2 - 0.5, max(tpw) * 0.7,
                 f"{ratio:.1f}× more efficient\nat B=32 vs B=4",
-                color="#f1c94e", fontsize=9, ha="center",
-                bbox=dict(boxstyle="round", fc="#1e1e2a", ec="#f1c94e", lw=0.8))
+                color="#b06000", fontsize=9, ha="center",
+                bbox=dict(boxstyle="round", fc="#fffbf0", ec="#b06000", lw=0.8))
 
 
 def plot_cache(ax1, ax2, summaries):
@@ -585,17 +591,17 @@ def main():
 
     # ── Figure 1: Main dashboard (2×4 grid) ───────────────────────────────────
     fig = plt.figure(figsize=(22, 18))
-    fig.patch.set_facecolor("#0f0f13")
+    fig.patch.set_facecolor("#f7f6f2")
 
     # Title
     fig.suptitle(
         "Qwen3-235B-A22B-FP8 · 8× NVIDIA H100 · vLLM  ·  Batch Size Sweep",
-        fontsize=16, fontweight="bold", color="#e8e8f0", y=0.98,
+        fontsize=16, fontweight="bold", color="#1a1a28", y=0.98,
     )
     fig.text(
         0.5, 0.955,
         "Methodology inspired by SemiAnalysis InferenceX — interactivity vs throughput Pareto analysis",
-        ha="center", fontsize=10, color="#8888a0",
+        ha="center", fontsize=10, color="#555566",
     )
 
     gs = fig.add_gridspec(3, 4, hspace=0.52, wspace=0.38,
@@ -629,7 +635,7 @@ def main():
     plot_cache(ax_kv, ax_prefix, summaries)
 
     # Notes panel
-    ax_notes.set_facecolor("#0f0f13")
+    ax_notes.set_facecolor("#f7f6f2")
     spine_off(ax_notes)
     ax_notes.set_xticks([]); ax_notes.set_yticks([])
 
@@ -674,10 +680,10 @@ def main():
 
     ax_notes.text(0.05, 0.97, "\n".join(notes_lines),
                   transform=ax_notes.transAxes,
-                  fontsize=8.5, color="#c8c8d8",
+                  fontsize=8.5, color="#2a2a3a",
                   va="top", ha="left",
                   fontfamily="monospace",
-                  bbox=dict(boxstyle="round", fc="#16161e", ec="#3a3a4a", lw=0.8))
+                  bbox=dict(boxstyle="round", fc="#e8e7e0", ec="#aaa8a0", lw=0.8))
 
     # Legend
     legend_patches = [mpatches.Patch(color=BATCH_COLORS[bs], label=f"Batch size {bs}")
@@ -692,8 +698,8 @@ def main():
 
     # ── Figure 2: Standalone Pareto (cleaner, shareable) ──────────────────────
     fig2, ax2 = plt.subplots(figsize=(10, 7))
-    fig2.patch.set_facecolor("#0f0f13")
-    ax2.set_facecolor("#16161e")
+    fig2.patch.set_facecolor("#f7f6f2")
+    ax2.set_facecolor("#efeeea")
 
     plot_interactivity_vs_throughput(ax2, summaries, data_all)
 
