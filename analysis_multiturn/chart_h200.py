@@ -509,7 +509,7 @@ def make_cross_hardware_comparison(summaries_h100: dict, summaries_h200: dict, o
     if len(pareto_xs) >= 2:
         order = np.argsort(pareto_xs)
         ax_pareto.plot([pareto_xs[i] for i in order], [pareto_ys[i] for i in order],
-                       color="#6060a0", linewidth=2.0, linestyle="--", zorder=1, alpha=0.8,
+                       color="#7070b0", linewidth=2.0, linestyle="--", zorder=1, alpha=0.8,
                        label="H100 Pareto frontier")
 
     # H100 Pareto points
