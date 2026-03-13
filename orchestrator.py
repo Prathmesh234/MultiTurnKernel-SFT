@@ -515,20 +515,30 @@ class TraceOrchestrator:
         with open(failed_path, "w") as f:
             json.dump(failed_tasks, f, indent=2, default=str)
 
-    def _save_incomplete_traces(self, queue):
+    def _save_incomplete_traces(self, queue, in_flight_items: list[dict] | None = None):
         """Save in-progress items (mid-turn) so progress isn't lost on kill.
 
-        Only includes items that have at least one turn of history.
+        Captures TWO sources of incomplete work:
+        1. Items still sitting in the queue (waiting for their next turn)
+        2. In-flight items that were popped from the queue for processing
+           but haven't been finalized yet (e.g. crash during Modal validation)
+
         Items that are finalized (DONE) are NOT here — they live in the
         main output file. This file is overwritten every batch cycle so
         completed items are automatically removed.
         """
         incomplete_dir = Path("incomplete")
         incomplete_dir.mkdir(exist_ok=True)
+
+        # Combine queue items + in-flight items
+        all_items = list(queue.queue)
+        if in_flight_items:
+            all_items.extend(in_flight_items)
+
         incomplete = []
-        for item in queue.queue:
-            if not item.get("turns_history"):
-                continue
+        for item in all_items:
+            # Save ALL items — even first-turn ones with no history yet,
+            # so we can track what was in progress and resume later
             incomplete.append({
                 "sample_key": item["sample_key"],
                 "source": item["sample"].get("source"),
@@ -537,13 +547,15 @@ class TraceOrchestrator:
                 "problem_id": item["sample"].get("problem_id"),
                 "pytorch_code": item["pytorch_code"],
                 "current_turn": item["turn_num"],
-                "turns": item["turns_history"],
+                "turns": item.get("turns_history", []),
                 "full_messages": item["messages"],
                 "status": "incomplete",
                 "timestamp": datetime.now().isoformat(),
             })
         with open(incomplete_dir / "incomplete_traces.json", "w") as f:
             json.dump(incomplete, f, indent=2, default=str)
+        if incomplete:
+            print(f"  Saved {len(incomplete)} incomplete traces to {incomplete_dir / 'incomplete_traces.json'}")
 
     async def run_multi_turn(self, batch_size: int = 4, max_turns: int = 4, modal_parallel: int = 16):
         """
@@ -617,12 +629,17 @@ class TraceOrchestrator:
 
         with modal_app.run():
             async with aiohttp.ClientSession() as session:
-                while len(queue) > 0 or pending_validations:
-                    if len(queue) > 0:
+                # Track in-flight batch items so they can be saved on crash
+                in_flight_batch: list[dict] = []
+                try:
+                    while len(queue) > 0:
                         # Pop a batch
                         batch = []
                         for _ in range(min(batch_size, len(queue))):
                             batch.append(queue.pop())
+
+                        # Track in-flight items for crash recovery
+                        in_flight_batch = list(batch)
 
                         # Generate completions concurrently on vLLM
                         responses = await asyncio.gather(*[
@@ -630,114 +647,127 @@ class TraceOrchestrator:
                             for item in batch
                         ])
 
-                    # Extract code locally, split into items needing Modal vs already resolved
-                    modal_items = []      # (index, item, triton_code) - need Modal validation
-                    resolved_items = []   # (index, item, result, completion, reasoning) - already resolved locally
+                        # Extract code locally, split into items needing Modal vs already resolved
+                        modal_items = []      # (index, item, triton_code) - need Modal validation
+                        resolved_items = []   # (index, item, result, completion, reasoning) - already resolved locally
 
-                    for idx, (item, response) in enumerate(zip(batch, responses)):
-                        if not response or not response.get("content"):
-                            result = {"correctness": False, "error": "Generation failed"}
-                            resolved_items.append((idx, item, result, None, None))
-                            continue
+                        for idx, (item, response) in enumerate(zip(batch, responses)):
+                            if not response or not response.get("content"):
+                                result = {"correctness": False, "error": "Generation failed"}
+                                resolved_items.append((idx, item, result, None, None))
+                                continue
 
-                        completion = response["content"]
-                        reasoning = response.get("reasoning")
-                        triton_code = self.extract_triton_code(completion)
+                            completion = response["content"]
+                            reasoning = response.get("reasoning")
+                            triton_code = self.extract_triton_code(completion)
 
-                        if not triton_code:
-                            result = {"correctness": False, "error": "Triton code extraction failed"}
-                            resolved_items.append((idx, item, result, completion, reasoning))
-                        else:
-                            pre_error = pre_validate_triton_code(triton_code)
-                            if pre_error:
-                                print(f"  {item['sample_key']} turn {item['turn_num']} pre-validation failed: {pre_error}")
-                                result = {"correctness": False, "speedup": 0.0, "error": pre_error}
+                            if not triton_code:
+                                result = {"correctness": False, "error": "Triton code extraction failed"}
                                 resolved_items.append((idx, item, result, completion, reasoning))
                             else:
-                                modal_items.append((idx, item, triton_code, completion, reasoning))
+                                pre_error = pre_validate_triton_code(triton_code)
+                                if pre_error:
+                                    print(f"  {item['sample_key']} turn {item['turn_num']} pre-validation failed: {pre_error}")
+                                    result = {"correctness": False, "speedup": 0.0, "error": pre_error}
+                                    resolved_items.append((idx, item, result, completion, reasoning))
+                                else:
+                                    modal_items.append((idx, item, triton_code, completion, reasoning))
 
-                    # Validate on Modal in parallel using .starmap()
-                    # Process in chunks of modal_parallel to limit concurrency
-                    modal_results = {}  # idx -> result
-                    for chunk_start in range(0, len(modal_items), modal_parallel):
-                        chunk = modal_items[chunk_start:chunk_start + modal_parallel]
-                        print(f"Validating {len(chunk)} kernels on Modal H100 in parallel...")
+                        # Validate on Modal in parallel using .starmap()
+                        # Process in chunks of modal_parallel to limit concurrency
+                        modal_results = {}  # idx -> result
+                        for chunk_start in range(0, len(modal_items), modal_parallel):
+                            chunk = modal_items[chunk_start:chunk_start + modal_parallel]
+                            print(f"Validating {len(chunk)} kernels on Modal H100 in parallel...")
 
-                        starmap_inputs = [
-                            (
-                                triton_code,                                    # triton_code
-                                item["pytorch_code"],                           # pytorch_code
-                                5,                                              # n_correctness
-                                20,                                             # n_trials
-                                item["sample"].get("name", "generated_kernel"), # kernel_name
-                                item["sample"].get("entry_point", "Model"),     # entry_point
-                                1e-4,                                           # rtol
-                                1e-4,                                           # atol
+                            starmap_inputs = [
+                                (
+                                    triton_code,                                    # triton_code
+                                    item["pytorch_code"],                           # pytorch_code
+                                    5,                                              # n_correctness
+                                    20,                                             # n_trials
+                                    item["sample"].get("name", "generated_kernel"), # kernel_name
+                                    item["sample"].get("entry_point", "Model"),     # entry_point
+                                    1e-4,                                           # rtol
+                                    1e-4,                                           # atol
+                                )
+                                for _, item, triton_code, _, _ in chunk
+                            ]
+
+                            # .starmap() runs all inputs in parallel across Modal containers
+                            # return_exceptions=True returns Exception objects instead of raising
+                            results_iter = await asyncio.to_thread(
+                                lambda inputs=starmap_inputs: list(
+                                    benchmark_kernelbench.starmap(inputs, return_exceptions=True, wrap_returned_exceptions=False)
+                                )
                             )
-                            for _, item, triton_code, _, _ in chunk
-                        ]
 
-                        # .starmap() runs all inputs in parallel across Modal containers
-                        # return_exceptions=True returns Exception objects instead of raising
-                        results_iter = await asyncio.to_thread(
-                            lambda inputs=starmap_inputs: list(
-                                benchmark_kernelbench.starmap(inputs, return_exceptions=True, wrap_returned_exceptions=False)
-                            )
-                        )
+                            for (idx, item, triton_code, _, _), result in zip(chunk, results_iter):
+                                if isinstance(result, Exception):
+                                    modal_results[idx] = {
+                                        "correctness": False,
+                                        "speedup": 0.0,
+                                        "error": str(result),
+                                    }
+                                else:
+                                    modal_results[idx] = result
 
-                        for (idx, item, triton_code, _, _), result in zip(chunk, results_iter):
-                            if isinstance(result, Exception):
-                                modal_results[idx] = {
-                                    "correctness": False,
-                                    "speedup": 0.0,
-                                    "error": str(result),
-                                }
+                            print(f"  Modal chunk done ({len(chunk)} results)")
+
+                        # Route all results (resolved locally + Modal validated)
+                        all_items = []
+                        for idx, item, result, completion, reasoning in resolved_items:
+                            triton_code = None
+                            all_items.append((idx, item, result, triton_code, completion, reasoning))
+                        for idx, item, triton_code, completion, reasoning in modal_items:
+                            result = modal_results[idx]
+                            all_items.append((idx, item, result, triton_code, completion, reasoning))
+
+                        # Sort by original index to keep deterministic ordering
+                        all_items.sort(key=lambda x: x[0])
+
+                        for _, item, result, triton_code, completion, reasoning in all_items:
+                            turn_result = {
+                                "turn": item["turn_num"],
+                                "reasoning": reasoning,
+                                "triton_code": triton_code,
+                                "full_completion": completion,
+                                "result": result,
+                                "feedback_given": None,
+                            }
+                            item["turns_history"].append(turn_result)
+
+                            stop, reason = queue.should_stop(item["turn_num"], result)
+                            if stop:
+                                queue.finalize(item, reason)
+                                correctness = result.get("correctness", False)
+                                speedup = result.get("speedup", 0.0)
+                                print(f"  {item['sample_key']} DONE ({reason}): correct={correctness}, speedup={speedup:.2f}x, turns={item['turn_num']}")
+                                # Save immediately on every finalization
+                                self._save_multiturn_traces(queue.completed_traces)
+                                if queue.failed_tasks:
+                                    self._save_failed_tasks(queue.failed_tasks)
                             else:
-                                modal_results[idx] = result
+                                feedback = queue.build_feedback(result)
+                                turn_result["feedback_given"] = feedback
+                                queue.requeue_with_feedback(item, feedback, completion or "")
+                                print(f"  {item['sample_key']} turn {item['turn_num'] - 1} -> retrying (queue size: {len(queue)})")
 
-                        print(f"  Modal chunk done ({len(chunk)} results)")
+                        # Batch fully processed — clear in-flight tracker
+                        in_flight_batch = []
 
-                    # Route all results (resolved locally + Modal validated)
-                    all_items = []
-                    for idx, item, result, completion, reasoning in resolved_items:
-                        triton_code = None
-                        all_items.append((idx, item, result, triton_code, completion, reasoning))
-                    for idx, item, triton_code, completion, reasoning in modal_items:
-                        result = modal_results[idx]
-                        all_items.append((idx, item, result, triton_code, completion, reasoning))
-
-                    # Sort by original index to keep deterministic ordering
-                    all_items.sort(key=lambda x: x[0])
-
-                    for _, item, result, triton_code, completion, reasoning in all_items:
-                        turn_result = {
-                            "turn": item["turn_num"],
-                            "reasoning": reasoning,
-                            "triton_code": triton_code,
-                            "full_completion": completion,
-                            "result": result,
-                            "feedback_given": None,
-                        }
-                        item["turns_history"].append(turn_result)
-
-                        stop, reason = queue.should_stop(item["turn_num"], result)
-                        if stop:
-                            queue.finalize(item, reason)
-                            correctness = result.get("correctness", False)
-                            speedup = result.get("speedup", 0.0)
-                            print(f"  {item['sample_key']} DONE ({reason}): correct={correctness}, speedup={speedup:.2f}x, turns={item['turn_num']}")
-                            # Save immediately on every finalization
-                            self._save_multiturn_traces(queue.completed_traces)
-                            if queue.failed_tasks:
-                                self._save_failed_tasks(queue.failed_tasks)
-                        else:
-                            feedback = queue.build_feedback(result)
-                            turn_result["feedback_given"] = feedback
-                            queue.requeue_with_feedback(item, feedback, completion or "")
-                            print(f"  {item['sample_key']} turn {item['turn_num'] - 1} -> retrying (queue size: {len(queue)})")
-
-                    # Save incomplete (mid-turn) items still in queue
-                    self._save_incomplete_traces(queue)
+                        # Save incomplete (mid-turn) items still in queue
+                        self._save_incomplete_traces(queue)
+                finally:
+                    # Crash/interrupt safety: save whatever we have
+                    print("\nSaving all traces before exit...")
+                    if queue.completed_traces:
+                        self._save_multiturn_traces(queue.completed_traces)
+                    if queue.failed_tasks:
+                        self._save_failed_tasks(queue.failed_tasks)
+                    # Save in-flight items (popped from queue but not yet processed)
+                    # plus remaining queue items to incomplete/
+                    self._save_incomplete_traces(queue, in_flight_items=in_flight_batch)
 
         traces = queue.completed_traces
         success_count = sum(1 for t in traces if t.get("stop_reason") == "success_fast")
