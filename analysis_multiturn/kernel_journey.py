@@ -51,7 +51,7 @@ def main():
 
     trace_file = args.trace or os.path.join(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-        "reasoning_traces_qwen3_multiturn.json"
+        "traces", "reasoning_traces_multiturn.json"
     )
 
     if not os.path.exists(trace_file):

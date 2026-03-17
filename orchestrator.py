@@ -30,7 +30,7 @@ from utilities import pre_validate_triton_code, load_solved_keys
 VLLM_BASE_URL = "http://localhost:8000/v1"
 MODEL_NAME = "Qwen/Qwen3-235B-A22B-Thinking-2507-FP8"
 OUTPUT_FILE = "traces/reasoning_traces.json"
-OUTPUT_FILE_MULTITURN = "traces/reasoning_traces_qwen3_multiturn-batch-128-h200s-2.json"
+OUTPUT_FILE_MULTITURN = "traces/reasoning_traces_multiturn.json"
 MAX_MODEL_LEN = 131072  # Must match --max-model-len on vLLM server (Qwen3-235B = 131072)
 MAX_COMPLETION_TOKENS = 32768  # Upper bound; dynamically capped per request
 TEMPERATURE = 0.7
@@ -581,27 +581,10 @@ class TraceOrchestrator:
             with open(OUTPUT_FILE_MULTITURN, "w") as f:
                 json.dump([], f)
 
-        # Keys already solved in previous runs
+        # Keys already solved in previous runs (consolidated files)
         multiturn_failed = OUTPUT_FILE_MULTITURN.replace(".json", "_failed.json")
         solved_keys = load_solved_keys(
             OUTPUT_FILE_MULTITURN, multiturn_failed,
-            # batch-128 h200 run
-            "traces/reasoning_traces_qwen3_multiturn-batch-128-h200s.json",
-            "traces/reasoning_traces_qwen3_multiturn-batch-128-h200s_failed.json",
-            # batch-32 run
-            "traces/reasoning_traces_qwen3_multiturn-batch-32.json",
-            "traces/reasoning_traces_qwen3_multiturn-batch-32_failed.json",
-            # batch-16 run
-            "traces/reasoning_traces_qwen3_multiturn-batch-16.json",
-            "traces/reasoning_traces_qwen3_multiturn-batch-16_failed.json",
-            # batch-8 run
-            "traces/reasoning_traces_qwen3_multiturn-batch-8.json",
-            "traces/reasoning_traces_qwen3_multiturn-batch-8_failed.json",
-            # batch-4 run (original qwen3 multiturn)
-            "traces/reasoning_traces_qwen3_multiturn.json",
-            "traces/reasoning_traces_qwen3_multiturn_failed.json",
-            # earlier qwen3 run
-            "traces/reasoning_traces_qwen3_multiturn-1.json",
         )
         skip_keys = self.processed_keys | solved_keys
 
