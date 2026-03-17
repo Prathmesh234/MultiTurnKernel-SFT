@@ -279,7 +279,7 @@ class TraceOrchestrator:
         session: aiohttp.ClientSession,
     ) -> Optional[dict]:
         """
-        Generate a Triton kernel completion from GLM-4.5-Air.
+        Generate a Triton kernel completion
 
         Args:
             messages: The conversation messages to send
