@@ -23,9 +23,6 @@ Thumbs.db
 reasoning_traces.json
 test_*.json
 
-# Incomplete traces (large crash-recovery checkpoint, not needed in git)
-incomplete/
-
 # Metrics — raw runtime data (large, changes every poll)
 # Only *_compact.json (trimmed) and *.jsonl are committed
 metrics/prometheus.json
