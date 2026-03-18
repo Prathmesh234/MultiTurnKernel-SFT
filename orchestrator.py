@@ -24,7 +24,7 @@ from multi_turn_queue import MultiTurnQueue
 # Import Modal app and function for remote execution
 import modal
 from modal_app import app as modal_app, benchmark_kernelbench
-from utilities import pre_validate_triton_code, load_solved_keys
+from utilities import pre_validate_triton_code, load_solved_keys, extract_triton_code
 
 # Configuration
 VLLM_BASE_URL = "http://localhost:8000/v1"
@@ -340,38 +340,7 @@ class TraceOrchestrator:
             return None
     
     def extract_triton_code(self, completion: str) -> Optional[str]:
-        """
-        Extract Triton code from model completion.
-        
-        Args:
-            completion: The full model response
-            
-        Returns:
-            The extracted Triton code or None
-        """
-        import re
-        
-        # Try to find <triton>...</triton> block
-        triton_match = re.search(r"<triton>(.*?)</triton>", completion, re.DOTALL)
-        if triton_match:
-            return triton_match.group(1).strip()
-        
-        # Fallback: try to find code block with triton imports
-        code_blocks = re.findall(r"```python\n(.*?)```", completion, re.DOTALL)
-        for block in code_blocks:
-            if "triton" in block.lower() and "@triton.jit" in block:
-                return block.strip()
-        
-        # Last resort: look for any @triton.jit decorated function
-        if "@triton.jit" in completion:
-            # Find the start of imports
-            idx = completion.find("import torch")
-            if idx == -1:
-                idx = completion.find("import triton")
-            if idx != -1:
-                return completion[idx:].strip()
-        
-        return None
+        return extract_triton_code(completion)
     
     async def validate_on_modal(
         self,

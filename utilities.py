@@ -140,6 +140,29 @@ def load_solved_keys(*trace_files: str) -> set[str]:
     return solved
 
 
+def extract_triton_code(completion: str) -> str | None:
+    """Extract Triton code from a model completion."""
+    import re
+
+    triton_match = re.search(r"<triton>(.*?)</triton>", completion, re.DOTALL)
+    if triton_match:
+        return triton_match.group(1).strip()
+
+    code_blocks = re.findall(r"```python\n(.*?)```", completion, re.DOTALL)
+    for block in code_blocks:
+        if "triton" in block.lower() and "@triton.jit" in block:
+            return block.strip()
+
+    if "@triton.jit" in completion:
+        idx = completion.find("import torch")
+        if idx == -1:
+            idx = completion.find("import triton")
+        if idx != -1:
+            return completion[idx:].strip()
+
+    return None
+
+
 def get_shapes(pytorch_code: str):
     """
     Get shapes from get_inputs().
