@@ -91,20 +91,41 @@ async def generate_completion(
     client: AsyncOpenAI,
     retries: int = 3,
 ) -> Optional[dict]:
-    total_input_chars = sum(len(m["content"]) for m in messages)
+    total_input_chars = sum(
+        len(m["content"]) if isinstance(m["content"], str)
+        else sum(len(b.get("text", "")) for b in m["content"])
+        for m in messages
+    )
     estimated_input_tokens = int(total_input_chars / 3.5) + 50
     max_tokens = min(MAX_COMPLETION_TOKENS, MAX_MODEL_LEN - estimated_input_tokens)
     max_tokens = max(max_tokens, 1024)
+
+    # Add cache_control to system prompt (messages[0]) and first user message (messages[1]).
+    # These are the largest repeated blocks — system prompt is identical across all requests,
+    # first user message (pytorch code) is identical across all turns of the same problem.
+    cached_messages = []
+    for i, msg in enumerate(messages):
+        if i < 2:
+            cached_messages.append({
+                "role": msg["role"],
+                "content": [{"type": "text", "text": msg["content"], "cache_control": {"type": "ephemeral"}}],
+            })
+        else:
+            cached_messages.append(msg)
 
     for attempt in range(retries):
         try:
             completion = await client.chat.completions.create(
                 model=OPENROUTER_MODEL,
-                messages=messages,
+                messages=cached_messages,
                 max_tokens=max_tokens,
                 temperature=TEMPERATURE,
                 extra_body={
-                    "provider": {"quantizations": ["fp8"]},
+                    "provider": {
+                        "order": ["DeepInfra"],
+                        "allow_fallbacks": False,
+                        "quantizations": ["fp8"],
+                    },
                 },
                 timeout=900,
             )
