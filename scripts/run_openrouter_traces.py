@@ -2,14 +2,11 @@
 """
 Generate additional reasoning traces using OpenRouter API.
 
-Phase 1: Resume incomplete traces (max 4 total turns)
-Phase 2: Continue failed traces (+3 additional turns on top of original 4 = 7 max)
+Continues failed traces (+3 additional turns on top of original 4 = 7 max)
 
 Usage:
     export OPENROUTER_API_KEY="sk-or-..."
-    python scripts/run_openrouter_traces.py --phase incomplete
-    python scripts/run_openrouter_traces.py --phase failed
-    python scripts/run_openrouter_traces.py --phase all
+    python scripts/run_openrouter_traces.py
 """
 
 import json
@@ -43,12 +40,10 @@ OPENROUTER_MODEL = "qwen/qwen3-235b-a22b-thinking-2507"
 # ---------------------------------------------------------------------------
 # File paths
 # ---------------------------------------------------------------------------
-INCOMPLETE_FILE = PROJECT_ROOT / "incomplete" / "incomplete_traces.json"
 FAILED_FILE = PROJECT_ROOT / "traces" / "reasoning_traces_multiturn_failed.json"
 QWEN_TRACES_FILE = PROJECT_ROOT / "traces" / "reasoning_traces_multiturn_qwen.json"
 CORRECT_TRACES_FILE = PROJECT_ROOT / "traces" / "reasoning_traces_multiturn.json"
 
-INCOMPLETE_MAX_TURNS = 4
 FAILED_EXTRA_TURNS = 3
 
 
@@ -160,40 +155,7 @@ async def generate_completion(
 
 
 # ---------------------------------------------------------------------------
-# Phase 1: Incomplete traces
-# ---------------------------------------------------------------------------
-
-def build_incomplete_queue_items(max_turns: int) -> list[dict]:
-    raw = load_json(INCOMPLETE_FILE)
-    if not raw:
-        print("No incomplete traces found.")
-        return []
-
-    items = []
-    for trace in raw:
-        if trace["current_turn"] > max_turns:
-            continue
-        items.append({
-            "sample_key": trace["sample_key"],
-            "sample": {
-                "source": trace.get("source"),
-                "level": trace.get("level"),
-                "name": trace.get("name"),
-                "problem_id": trace.get("problem_id"),
-                "entry_point": "Model",
-            },
-            "pytorch_code": trace["pytorch_code"],
-            "messages": trace["full_messages"],
-            "turn_num": trace["current_turn"],
-            "turns_history": trace.get("turns", []),
-        })
-
-    print(f"Loaded {len(items)} incomplete traces (max_turns={max_turns})")
-    return items
-
-
-# ---------------------------------------------------------------------------
-# Phase 2: Failed traces
+# Failed traces
 # ---------------------------------------------------------------------------
 
 def build_failed_queue_items(extra_turns: int) -> list[dict]:
@@ -410,16 +372,6 @@ async def process_phase(
 # Entry point
 # ---------------------------------------------------------------------------
 
-async def run_incomplete(batch_size: int, modal_parallel: int):
-    items = build_incomplete_queue_items(INCOMPLETE_MAX_TURNS)
-    successful, failed = await process_phase(
-        items, INCOMPLETE_MAX_TURNS, batch_size, modal_parallel, "INCOMPLETE TRACES",
-        success_paths=[QWEN_TRACES_FILE, CORRECT_TRACES_FILE],
-        failed_path=FAILED_FILE,
-    )
-    return successful, failed
-
-
 async def run_failed(batch_size: int, modal_parallel: int):
     items = build_failed_queue_items(FAILED_EXTRA_TURNS)
     max_possible = max((it.get("_max_turns", 7) for it in items), default=7)
@@ -435,7 +387,6 @@ async def main():
     import argparse
 
     parser = argparse.ArgumentParser(description="Generate traces via OpenRouter API")
-    parser.add_argument("--phase", choices=["incomplete", "failed", "all"], default="all")
     parser.add_argument("--batch-size", type=int, default=4)
     parser.add_argument("--modal-parallel", type=int, default=16)
     args = parser.parse_args()
@@ -445,13 +396,8 @@ async def main():
         print("  export OPENROUTER_API_KEY='sk-or-...'")
         sys.exit(1)
 
-    if args.phase in ("incomplete", "all"):
-        s, f = await run_incomplete(args.batch_size, args.modal_parallel)
-        print(f"\nIncomplete phase: {len(s)} successful, {len(f)} failed")
-
-    if args.phase in ("failed", "all"):
-        s, f = await run_failed(args.batch_size, args.modal_parallel)
-        print(f"\nFailed phase: {len(s)} successful, {len(f)} failed")
+    s, f = await run_failed(args.batch_size, args.modal_parallel)
+    print(f"\nFailed phase: {len(s)} successful, {len(f)} failed")
 
     print("\nDone.")
 
