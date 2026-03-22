@@ -30,7 +30,9 @@ from utilities import pre_validate_triton_code, load_solved_keys, extract_triton
 VLLM_BASE_URL = "http://localhost:8000/v1"
 MODEL_NAME = "Qwen/Qwen3-235B-A22B-Thinking-2507-FP8"
 OUTPUT_FILE = "traces/reasoning_traces.json"
-OUTPUT_FILE_MULTITURN = "traces/reasoning_traces_multiturn.json"
+OUTPUT_FILE_MULTITURN = "traces/reasoning_traces_multiturn_qwen.json"
+OUTPUT_FILE_MULTITURN_FAILED = "traces/reasoning_traces_multiturn_failed.json"
+OUTPUT_FILE_MULTITURN_CORRECT = "traces/reasoning_traces_correct_multiturn.json"
 MAX_MODEL_LEN = 131072  # Must match --max-model-len on vLLM server (Qwen3-235B = 131072)
 MAX_COMPLETION_TOKENS = 32768  # Upper bound; dynamically capped per request
 TEMPERATURE = 0.7
@@ -480,8 +482,7 @@ class TraceOrchestrator:
 
     def _save_failed_tasks(self, failed_tasks: list[dict]):
         """Save failed task traces (all turns incorrect) to a separate JSON."""
-        failed_path = OUTPUT_FILE_MULTITURN.replace(".json", "_failed.json")
-        with open(failed_path, "w") as f:
+        with open(OUTPUT_FILE_MULTITURN_FAILED, "w") as f:
             json.dump(failed_tasks, f, indent=2, default=str)
 
     def _save_incomplete_traces(self, queue, in_flight_items: list[dict] | None = None):
@@ -550,10 +551,12 @@ class TraceOrchestrator:
             with open(OUTPUT_FILE_MULTITURN, "w") as f:
                 json.dump([], f)
 
-        # Keys already solved in previous runs (consolidated files)
-        multiturn_failed = OUTPUT_FILE_MULTITURN.replace(".json", "_failed.json")
+        # Keys already solved in previous runs (both successful and failed)
+        # so we skip them entirely on re-execution
         solved_keys = load_solved_keys(
-            OUTPUT_FILE_MULTITURN, multiturn_failed,
+            OUTPUT_FILE_MULTITURN,
+            OUTPUT_FILE_MULTITURN_FAILED,
+            OUTPUT_FILE_MULTITURN_CORRECT,
         )
         skip_keys = self.processed_keys | solved_keys
 
@@ -732,7 +735,7 @@ class TraceOrchestrator:
         print(f"Failed (requeued once, all turns incorrect): {len(queue.failed_tasks)}")
         print(f"Output file: {OUTPUT_FILE_MULTITURN}")
         if queue.failed_tasks:
-            print(f"Failed tasks file: {OUTPUT_FILE_MULTITURN.replace('.json', '_failed.json')}")
+            print(f"Failed tasks file: {OUTPUT_FILE_MULTITURN_FAILED}")
 
         return traces
 
