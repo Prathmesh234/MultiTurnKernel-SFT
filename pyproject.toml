@@ -1,0 +1,40 @@
+[project]
+name = "arcee-vllm"
+version = "0.1.0"
+description = "vLLM inference and serving"
+readme = "README.md"
+requires-python = ">=3.10,<3.14"
+dependencies = [
+    "vllm==0.15.0",
+    "torch==2.9.1",
+    "transformers>=4.57.5",
+    "huggingface-hub>=0.17.0",
+    "datasets>=2.14.0",
+    "tqdm>=4.65.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "ruff>=0.1.0",
+    "ipython>=8.0.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv]
+# Pure uv approach - no venv needed, uv manages everything
+# Auto-detect CUDA backend based on system CUDA driver
+index-strategy = "unsafe-best-match"
+
+[tool.uv.pip]
+# Allow uv to automatically select PyTorch CUDA backend
+# Options: auto (detects CUDA), cu129, cu128, cu130, cpu
+# Default: auto
+extra-index-url = []
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"

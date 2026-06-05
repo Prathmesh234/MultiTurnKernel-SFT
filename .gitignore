@@ -1,0 +1,37 @@
+# Environment / secrets
+.env
+*.env
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+build/
+dist/
+wheels/
+
+# Virtual environments
+.venv/
+venv/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Output files (kernelbench-triton)
+reasoning_traces.json
+test_*.json
+
+# Metrics — raw runtime data (large, changes every poll)
+# Only *_compact.json (trimmed) and *.jsonl are committed
+metrics/prometheus.json
+metrics/metrics-batch*/prometheus-batch*.json
+!metrics/metrics-batch*/*_compact.json
