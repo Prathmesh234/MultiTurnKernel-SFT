@@ -1,0 +1,1333 @@
+================================================================================
+KERNEL: 33_VanillaRNN
+Turns: 4  |  Final: FAILED  |  Speedup: 0.0000x
+================================================================================
+
+────────────────────────────────────────────────────────────────────────────────
+You are an expert GPU kernel engineer. Your task is to convert PyTorch code into optimized Triton kernels.
+
+=== TRITON PRIMER: CORE CONCEPTS ===
+
+1. SPMD PROGRAMMING MODEL
+   Triton uses Single Program, Multiple Data: the SAME kernel code runs on many GPU threads simultaneously.
+   Each thread (program instance) processes a different portion of data.
+   
+   Key insight: Use tl.program_id() to determine which data THIS instance should process.
+   
+   Example: To process array of size N with BLOCK_SIZE per program:
+   - Program 0 processes elements [0, BLOCK_SIZE)
+   - Program 1 processes elements [BLOCK_SIZE, 2*BLOCK_SIZE)
+   - etc.
+
+2. COMPILE-TIME vs RUNTIME
+   Triton kernels are COMPILED before execution. Some values must be known at compile-time.
+   
+   COMPILE-TIME (tl.constexpr):
+   - BLOCK_SIZE, num_warps, num_stages
+   - Arguments to tl.arange(start, end) - both must be constants
+   - Tensor shape parameters marked with : tl.constexpr
+   
+   RUNTIME:
+   - Actual data values
+   - Loop bounds (range(0, N, BLOCK_SIZE) is fine - N can be runtime)
+   - Loaded tensor elements
+   
+   CRITICAL: tl.arange(0, BLOCK_SIZE) ✓  but  tl.arange(0, n) where n is runtime ✗
+   Solution: Use fixed BLOCK_SIZE with masking for boundaries
+
+3. MEMORY SAFETY
+   GPU memory is accessed via pointers. Out-of-bounds access causes crashes.
+   
+   Always use MASKING:
+   ```python
+   offsets = pid * BLOCK_SIZE + tl.arange(0, BLOCK_SIZE)
+   mask = offsets < N  # Check boundaries
+   data = tl.load(ptr + offsets, mask=mask, other=0.0)  # Safe
+   ```
+   
+   The mask ensures we only touch valid memory locations.
+
+4. TRITON LANGUAGE SCOPE
+   Inside @triton.jit functions, you're in "Triton-land":
+   - Use tl.* operations ONLY
+   - No torch.* functions
+   - No Python control flow on tensor data (use tl.where instead)
+   
+   Outside (in wrapper), you're in "Python-land":
+   - Use torch.* freely
+   - Allocate tensors, compute grid sizes
+   - Launch kernels
+
+5. MATRIX OPERATIONS
+   tl.dot(A, B) performs matrix multiplication:
+   - Requires A.shape = (M, K) and B.shape = (K, N)
+   - Results in shape (M, N)
+   - Use tl.trans(B) if B is (N, K) to get (K, N)
+   
+   Common pattern for GEMM:
+   ```python
+   # Load tiles
+   a = tl.load(...)  # Shape: (BLOCK_M, BLOCK_K)
+   b = tl.load(...)  # Shape: (BLOCK_N, BLOCK_K)
+   # Transpose b to match dimensions
+   b_t = tl.trans(b)  # Now: (BLOCK_K, BLOCK_N)
+   # Multiply
+   c = tl.dot(a, b_t)  # Result: (BLOCK_M, BLOCK_N)
+   ```
+
+=== YOUR TASK ===
+
+For each PyTorch operation, you should:
+1. Analyze the operation and memory access patterns
+2. Think step-by-step about how to parallelize it
+3. Choose appropriate BLOCK_SIZE and num_warps
+4. Write the complete Triton kernel implementation
+
+Think step-by-step about the conversion before writing code. Then provide the complete
+Triton implementation inside <triton>...</triton> tags:
+
+<triton>
+import torch
+import triton
+import triton.language as tl
+
+@triton.jit
+def kernel_name(...):
+    # Your Triton kernel implementation
+    ...
+
+def triton_kernel_wrapper(input_tensors):
+    # Wrapper that calls the kernel and returns output
+    ...
+</triton>
+
+=== CRITICAL REQUIREMENTS ===
+
+1. The wrapper function MUST be named `triton_kernel_wrapper`
+2. The wrapper takes the SAME inputs as Model.forward() - just the input tensors, NOT model weights
+3. If the model has weights (nn.Linear, nn.Conv2d, etc.), the wrapper should create random weights or accept them as additional parameters
+4. **IMPORTANT**: If get_init_inputs() returns parameters (e.g., {'quantiles': 4, 'hidden_size': 128}), the wrapper MUST accept these as keyword arguments with defaults matching those values
+5. **Triton API Limitations**: tl.tanh, tl.pow, tl.unsqueeze do NOT exist - use tl.exp for tanh, ** operator for pow, reshape for unsqueeze
+
+=== TRITON KERNEL RULES - MUST FOLLOW ===
+
+IMPORTS - Only use these:
+```python
+import torch
+import triton
+import triton.language as tl
+```
+
+INSIDE @triton.jit KERNELS - Use ONLY triton.language (tl) operations:
+- tl.load(), tl.store() - memory access
+- tl.arange(), tl.zeros(), tl.full() - tensor creation
+- tl.sum(), tl.max(), tl.min() - reductions
+- tl.exp(), tl.log(), tl.sqrt(), tl.abs() - math ops
+- tl.maximum(), tl.minimum() - element-wise min/max
+- tl.where() - conditional selection
+- tl.program_id(), tl.num_programs() - grid info
+- Standard operators: +, -, *, /, %, <, >, ==, &, |
+
+NEVER use inside @triton.jit:
+- torch.* functions (torch.sum, torch.mean, torch.relu, etc.)
+- .pow(), .sqrt(), .exp() methods on tensors - use ** operator for pow, tl.sqrt(), tl.exp() for others
+- Python classes or objects
+- nn.* modules
+
+CONSTEXPR RULES:
+- tl.arange(start, end) - both start and end MUST be constants or tl.constexpr
+- BLOCK_SIZE: tl.constexpr in kernel signature
+- Use powers of 2: 64, 128, 256, 512, 1024
+
+REDUCTION PATTERN:
+```python
+# CORRECT - accumulator matches block size
+acc = tl.zeros([BLOCK_SIZE], dtype=tl.float32)
+for i in range(0, N, BLOCK_SIZE):
+    x = tl.load(ptr + offsets, mask=mask)
+    acc += x
+result = tl.sum(acc)  # reduce at the end
+
+# WRONG - shape mismatch in loop
+acc = tl.zeros([1], dtype=tl.float32)
+acc += tl.sum(x)  # ERROR: shape changes!
+```
+
+WRAPPER FUNCTION PATTERN:
+```python
+def triton_kernel_wrapper(x):
+    # x is the input tensor from get_inputs()
+    output = torch.empty_like(x)  # or appropriate shape
+
+    # Grid and block configuration
+    BLOCK_SIZE = 1024
+    grid = lambda meta: (triton.cdiv(x.numel(), meta['BLOCK_SIZE']),)
+
+    # Launch kernel
+    my_kernel[grid](x, output, x.numel(), BLOCK_SIZE=BLOCK_SIZE)
+
+    return output
+```
+
+COMMON OPERATIONS:
+- ReLU: tl.maximum(x, 0.0)
+- Sigmoid: 1.0 / (1.0 + tl.exp(-x))
+- Tanh: (tl.exp(2*x) - 1) / (tl.exp(2*x) + 1)
+- Softmax: exp_x = tl.exp(x - tl.max(x)); exp_x / tl.sum(exp_x)
+- Mean: tl.sum(x) / n_elements
+
+USE ASCII ONLY - no unicode characters like – or —, use - instead.
+
+
+=== MULTI-TURN FEEDBACK ===
+
+You may receive feedback on your generated kernel if it fails validation
+or is slower than PyTorch. When you receive feedback, analyze the error
+or performance issue, then generate an improved version. Always provide
+the corrected code inside <triton>...</triton> tags.
+
+────────────────────────────────────────────────────────────────────────────────
+Convert the following PyTorch code to an optimized Triton kernel:
+
+```python
+import torch
+import torch.nn as nn
+
+class Model(nn.Module):
+    def __init__(self, input_size: int, hidden_size: int, output_size: int):
+        """
+        Initialize the Vanilla RNN model.
+        
+        :param input_size: The number of input features (int).
+        :param hidden_size: The size of the hidden state (int).
+        :param output_size: The number of output features (int).
+        """
+        super(Model, self).__init__()
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+        self.output_size = output_size
+        self.hidden = torch.randn((batch_size, hidden_size))
+        
+        # Define the RNN cell components (input to hidden, hidden to hidden, and hidden to output)
+        self.i2h = nn.Linear(input_size + hidden_size, hidden_size)  # Input to hidden
+        self.h2o = nn.Linear(hidden_size, output_size)  # Hidden to output
+        self.tanh = nn.Tanh()  # Activation function for hidden state
+    
+    def forward(self, x: torch.Tensor, initial_hidden=None) -> torch.Tensor:
+        """
+        Forward pass of the Vanilla RNN.
+        
+        :param x: Input tensor of shape (batch_size, input_size).
+        :param hidden: Hidden state tensor of shape (batch_size, hidden_size).
+        :return: Output tensor of shape (batch_size, output_size), and the new hidden state.
+        """
+        if initial_hidden is not None:
+            self.hidden.copy_(initial_hidden)
+        self.hidden = self.hidden.to(x.device)
+        combined = torch.cat((x, self.hidden), dim=1)  # Concatenate input and hidden state
+        self.hidden = self.tanh(self.i2h(combined))  # Update hidden state
+        output = self.h2o(self.hidden)  # Compute output
+        return output
+
+batch_size = 256
+input_size = 16384
+hidden_size = 16384
+output_size = 8192
+sequence_length = 256
+
+def get_inputs():
+    return [torch.rand(batch_size, input_size),torch.rand(batch_size, hidden_size)]
+
+def get_init_inputs():
+    return [input_size, hidden_size, output_size]
+
+```
+
+Generate a complete Triton implementation that produces the same output as the PyTorch code.
+
+────────────────────────────────────────────────────────────────────────────────
+<triton>
+import torch
+import triton
+import triton.language as tl
+
+@triton.jit
+def fused_rnncell_kernel(
+    x_ptr, h_prev_ptr, w_i2h_ptr, b_i2h_ptr, w_h2o_ptr, b_h2o_ptr, h_new_ptr, out_ptr,
+    batch_size, input_size, hidden_size, output_size,
+    stride_xb, stride_hb, stride_wih_k, stride_wih_n, stride_wh2o_k, stride_wh2o_m,
+    stride_hb_new, stride_outb,
+    BLOCK_SIZE_M: tl.constexpr, BLOCK_SIZE_N: tl.constexpr, BLOCK_SIZE_K: tl.constexpr
+):
+    # Program IDs
+    pid_b = tl.program_id(axis=0)  # batch dimension
+    pid_m = tl.program_id(axis=1)  # output dimension for h2o, or row for i2h
+    pid_n = tl.program_id(axis=2)  # column dimension
+
+    # Define offsets
+    offsets_m = pid_m * BLOCK_SIZE_M + tl.arange(0, BLOCK_SIZE_M)
+    offsets_n = pid_n * BLOCK_SIZE_N + tl.arange(0, BLOCK_SIZE_N)
+
+    # Input and previous hidden state
+    x_ptrs = x_ptr + pid_b * stride_xb + offsets_n[:, None]  # (BLOCK_SIZE_N, input_size)
+    h_prev_ptrs = h_prev_ptr + pid_b * stride_hb + offsets_n[None, :]  # (hidden_size,)
+
+    # Load input and hidden state
+    mask_n_input = offsets_n < input_size
+    x = tl.load(x_ptrs, mask=mask_n_input[:, None], other=0.0)  # (BLOCK_SIZE_N, input_size)
+    h_prev = tl.load(h_prev_ptrs, mask=offsets_n < hidden_size, other=0.0)  # (hidden_size,)
+
+    # Concatenate x and h_prev -> combined of size (input_size + hidden_size)
+    combined = tl.zeros((BLOCK_SIZE_N, input_size + hidden_size), dtype=tl.float32)
+    # Fill input part
+    mask_input = offsets_n < input_size
+    combined = tl.where(mask_input[:, None], x, combined)
+    # Fill hidden part
+    mask_hidden = (offsets_n >= input_size) & (offsets_n < input_size + hidden_size)
+    h_prev_expanded = tl.expand_dims(h_prev, 0)  # (1, hidden_size)
+    combined = tl.where(mask_hidden[:, None], h_prev_expanded, combined)
+
+    # Apply i2h: W * combined + b
+    # W shape: (hidden_size, input_size + hidden_size)
+    # We compute a tile of the output: (BLOCK_SIZE_M, BLOCK_SIZE_K) matmul (BLOCK_SIZE_K, input+hidden)
+    k_offsets = tl.arange(0, BLOCK_SIZE_K)
+    w_ptrs = w_i2h_ptr + offsets_m[:, None] * stride_wih_k + k_offsets[None, :] * stride_wih_n
+    mask_w = (offsets_m[:, None] < hidden_size) & (k_offsets[None, :] < input_size + hidden_size)
+    w = tl.load(w_ptrs, mask=mask_w, other=0.0)
+
+    # Matrix multiplication for i2h
+    acc = tl.zeros((BLOCK_SIZE_M, BLOCK_SIZE_N), dtype=tl.float32)
+    for k in range(0, input_size + hidden_size, BLOCK_SIZE_K):
+        k_mask = k_offsets < (input_size + hidden_size)
+        w = tl.load(w_ptrs + k * stride_wih_n, mask=k_mask[None, :], other=0.0)
+        c = combined[:, k + k_offsets]
+        c_masked = tl.where(k_mask[None, :], c, 0.0)
+        acc += tl.dot(w, c_masked)
+        w_ptrs += BLOCK_SIZE_K * stride_wih_n
+
+    # Add bias
+    b_ptrs = b_i2h_ptr + offsets_m
+    b = tl.load(b_ptrs, mask=offsets_m < hidden_size, other=0.0)
+    acc += b[:, None]
+
+    # Apply tanh activation
+    h_new = (tl.exp(2 * acc) - 1) / (tl.exp(2 * acc) + 1)
+
+    # Store new hidden state
+    h_new_ptrs = h_new_ptr + pid_b * stride_hb_new + offsets_m[None, :] * stride_hb_new + offsets_n[:, None]
+    mask_h_new = (offsets_m < hidden_size)[:, None] & (offsets_n < hidden_size)[None, :]
+    tl.store(h_new_ptrs, h_new, mask=mask_h_new)
+
+    # Apply h2o: W2 * h_new + b2
+    # W2 shape: (output_size, hidden_size)
+    # We compute: (BLOCK_SIZE_M, hidden_size) @ (hidden_size, BLOCK_SIZE_N) -> (BLOCK_SIZE_M, BLOCK_SIZE_N)
+    # But we need to tile over hidden_size
+
+    # Reset accumulator for output
+    out_acc = tl.zeros((BLOCK_SIZE_M, BLOCK_SIZE_N), dtype=tl.float32)
+    h_new_flat = h_new  # already computed
+
+    w_h2o_ptrs = w_h2o_ptr + offsets_m[:, None] * stride_wh2o_k + k_offsets[None, :] * stride_wh2o_m
+    for k in range(0, hidden_size, BLOCK_SIZE_K):
+        mask_k = k_offsets < hidden_size
+        w2 = tl.load(w_h2o_ptrs + k * stride_wh2o_m, mask=mask_k[None, :], other=0.0)
+        h_k = h_new_flat[:, k + k_offsets]
+        h_k_masked = tl.where(mask_k[None, :], h_k, 0.0)
+        out_acc += tl.dot(w2, h_k_masked)
+        w_h2o_ptrs += BLOCK_SIZE_K * stride_wh2o_m
+
+    # Add output bias
+    b_h2o_ptrs = b_h2o_ptr + offsets_m
+    b_out = tl.load(b_h2o_ptrs, mask=offsets_m < output_size, other=0.0)
+    out_acc += b_out[:, None]
+
+    # Store output
+    out_ptrs = out_ptr + pid_b * stride_outb + offsets_m[None, :] * stride_outb + offsets_n[:, None]
+    mask_out = (offsets_m < output_size)[:, None] & (offsets_n < output_size)[None, :]
+    tl.store(out_ptrs, out_acc, mask=mask_out)
+
+
+def triton_kernel_wrapper(x, initial_hidden, input_size: int = 16384, hidden_size: int = 16384, output_size: int = 8192):
+    batch_size = x.shape[0]
+    
+    # Initialize hidden state
+    if initial_hidden is None:
+        h_prev = torch.randn((batch_size, hidden_size), device=x.device, dtype=x.dtype)
+    else:
+        h_prev = initial_hidden
+
+    # Create weights and biases (same as PyTorch Linear)
+    # i2h: input_size + hidden_size -> hidden_size
+    # h2o: hidden_size -> output_size
+    i2h_weight = torch.randn(hidden_size, input_size + hidden_size, device=x.device, dtype=x.dtype)
+    i2h_bias = torch.randn(hidden_size, device=x.device, dtype=x.dtype)
+    h2o_weight = torch.randn(output_size, hidden_size, device=x.device, dtype=x.dtype)
+    h2o_bias = torch.randn(output_size, device=x.device, dtype=x.dtype)
+
+    # Output tensors
+    h_new = torch.empty((batch_size, hidden_size), device=x.device, dtype=x.dtype)
+    out = torch.empty((batch_size, output_size), device=x.device, dtype=x.dtype)
+
+    # Constants
+    BLOCK_SIZE_M = 32
+    BLOCK_SIZE_N = 32
+    BLOCK_SIZE_K = 32
+
+    # Grid: (batch, ceil(hidden_size/BLOCK_SIZE_M), ceil(max(hidden_size, output_size)/BLOCK_SIZE_N))
+    grid = (
+        batch_size,
+        triton.cdiv(hidden_size, BLOCK_SIZE_M),
+        triton.cdiv(max(hidden_size, output_size), BLOCK_SIZE_N)
+    )
+
+    fused_rnncell_kernel[grid](
+        x, h_prev, i2h_weight, i2h_bias, h2o_weight, h2o_bias, h_new, out,
+        batch_size, input_size, hidden_size, output_size,
+        x.stride(0), h_prev.stride(0), i2h_weight.stride(0), i2h_weight.stride(1),
+        h2o_weight.stride(0), h2o_weight.stride(1),
+        h_new.stride(0), out.stride(0),
+        BLOCK_SIZE_M=BLOCK_SIZE_M, BLOCK_SIZE_N=BLOCK_SIZE_N, BLOCK_SIZE_K=BLOCK_SIZE_K
+    )
+
+    return out
+</triton>
+
+────────────────────────────────────────────────────────────────────────────────
+Compilation/runtime error:
+RuntimeError: The size of tensor a (32768) must match the size of tensor b (16384) at non-singleton dimension 1
+Traceback (most recent call last):
+  File "/root/modal_app.py", line 506, in benchmark_kernelbench
+    kernel_output = triton_kernel_wrapper(*kernel_args[:len(wrapper_params)])
+  File "/tmp/tmpb1xle65y_triton.py", line 113, in triton_kernel_wrapper
+RuntimeError: The size of tensor a (32768) must match the size of tensor b (16384) at non-singleton dimension 1
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/root/modal_app.py", line 508, in benchmark_kernelbench
+    raise first_err  # both attempts failed; surface the original error
+  File "/root/modal_app.py", line 496, in benchmark_kernelbench
+    kernel_output = _call_wrapper(cuda_inputs)
+  File "/root/modal_app.py", line 481, in _call_wrapper
+    return triton_kernel_wrapper(*kernel_args[:len(wrapper_params)])
+  File "/tmp/tmpb1xle65y_triton.py", line 113, in triton_kernel_wrapper
+RuntimeError: The size of tensor a (32768) must match the size of tensor b (16384) at non-singleton dimension 1
+
+
+Fix and regenerate the corrected code inside <triton>...</triton> tags.
+
+────────────────────────────────────────────────────────────────────────────────
+The error indicates a shape mismatch during concatenation: tensor `a` has size 32768 while tensor `b` has size 16384 along dimension 1. This suggests that we're incorrectly handling the `combined = x + h_prev` operation — but in reality, we're **concatenating** `x` and `h_prev`, so the total size should be `input_size + hidden_size = 16384 + 16384 = 32768`. The error likely occurs **outside the Triton kernel**, in the **wrapper**, because we're trying to pass mismatched tensors.
+
+But the error is happening **inside the wrapper**, which means we are incorrectly constructing the `combined` tensor **in host code**, or more likely — we misunderstood how the kernel should work.
+
+Wait: **The error is not in the kernel**, it's in the **wrapper**, and the line number is 113 — which is inside `triton_kernel_wrapper`. Looking at the code, we don’t do any concatenation in the wrapper. So the error must be from **tensor strides or shape mismatches passed into the kernel**.
+
+But we never concatenate in the wrapper — we pass `x` and `h_prev` separately.
+
+So the error must be in **how we're indexing or passing data** — but the error says "The size of tensor a (32768) must match tensor b (16384)" — this suggests that somewhere, we are trying to add or concatenate tensors with incompatible sizes.
+
+Wait — **the error is not in our code**? We don’t do any tensor operations in the wrapper after creating weights.
+
+Ah! The issue is: **we are creating `i2h_weight` with shape `(hidden_size, input_size + hidden_size)`**, which is `(16384, 32768)`, and we are passing it correctly. But the **kernel is not correctly computing the GEMM** — and the error may be due to **misaligned memory access or incorrect tiling**.
+
+But the error is **not from Triton**, it's from **PyTorch**, during kernel launch? That's not possible unless we're doing a PyTorch operation.
+
+Wait — the error occurs at line 113 in the wrapper, which is:
+
+```python
+fused_rnncell_kernel[grid](
+```
+
+So the error must be from **before** that — but we don’t do any tensor operations.
+
+Wait — no, the error is **during kernel launch**, but the message is from **PyTorch's shape checking** — which only happens if we're doing a PyTorch operation.
+
+But we’re not.
+
+Ah! The error is likely due to **incorrect tensor strides or shapes being passed** — but the real problem is: **our kernel is too complex and incorrectly implemented**. We are trying to do batched GEMMs with 3D grid, but we're mixing up dimensions.
+
+We need to **simplify**.
+
+### Key Issues:
+1. **Too aggressive tiling**: We're using 3D grid with batch, but Triton works best with 2D grid for matmuls.
+2. **Incorrect memory layout assumptions**: We're treating `x` and `h_prev` as if they can be tiled together, but they are separate.
+3. **The kernel is trying to do too much**: Instead of fusing everything, we should break it down or use simpler access.
+
+### Better Approach:
+Instead of doing full GEMM tiling inside one kernel, we can:
+- **Pre-concatenate `x` and `h_prev` on the host** (cheap) → shape `(batch, input_size + hidden_size)`
+- Then compute `i2h: W_i2h @ concat.T` → but we want to avoid full matmul in host.
+
+But we can do:
+- Use **two fused kernels** or **one kernel per operation**, but for performance, we want fusion.
+
+Alternatively, **restructure the kernel** to avoid concatenation in device code.
+
+### Simpler Plan:
+Let’s **not concatenate in device code**. Instead:
+- Compute `W_i2h @ x` and `W_i2h @ h_prev` separately, then add.
+- Because `W_i2h` is split logically: first `input_size` cols for `x`, next `hidden_size` for `h_prev`.
+
+So:
+```python
+i2h(x, h) = W1 @ x + W2 @ h + b
+```
+
+We can compute this as two matmuls and add.
+
+But better: **tile over K (input+hidden) dimension**, and load `x` and `h_prev` separately when `k < input_size` or `k >= input_size`.
+
+But we already do that — the issue is **the kernel is too complex and we’re using wrong strides**.
+
+### Root Cause of Error:
+The error says "The size of tensor a (32768) must match tensor b (16384)" — but this is **not from our code**. It must be from **PyTorch's automatic shape checking when passing tensors to Triton** — but Triton doesn't do that.
+
+Wait — the error is likely **misleading**. The real issue is that **we are passing tensors with wrong shapes to the kernel**, or **the kernel is accessing memory out of bounds**, causing GPU memory corruption, which leads to invalid tensor sizes later.
+
+But the error is **during kernel launch**, so likely **shape mismatch in arguments**.
+
+Looking at the kernel signature:
+
+```python
+x_ptr, h_prev_ptr, w_i2h_ptr, b_i2h_ptr, w_h2o_ptr, b_h2o_ptr, h_new_ptr, out_ptr,
+```
+
+We pass:
+- `x`: (256, 16384)
+- `h_prev`: (256, 16384)
+- `i2h_weight`: (16384, 32768)  ← this is 32768 in second dim
+- `i2h_bias`: (16384,)
+- etc.
+
+But in the kernel, we use:
+```python
+w_ptrs = w_i2h_ptr + offsets_m[:, None] * stride_wih_k + k_offsets[None, :] * stride_wih_n
+```
+
+If `stride_wih_n` is not correct, we read wrong memory.
+
+But the real issue is: **we are using a 3D grid**, but **each program is trying to process a tile of size BLOCK_SIZE_M x BLOCK_SIZE_N**, but we are not correctly handling the **K-dimension tiling** for the matmul.
+
+Moreover, we are **loading `combined` as a full tensor**, which is **not possible** — `combined` would be of size `BLOCK_SIZE_N x (input_size + hidden_size)` = 32 x 32768 — too big.
+
+Ah! This is the **real bug**:
+
+```python
+combined = tl.zeros((BLOCK_SIZE_N, input_size + hidden_size), dtype=tl.float32)
+```
+
+This tries to allocate a tensor of **32 x 32768 = 1 million elements** — which is **too large** for register space. Triton will fail or behave unpredictably.
+
+We **cannot** materialize the `combined` vector.
+
+### Fix:
+We must **avoid materializing `combined`**. Instead, during the matmul `W_i2h @ combined`, we:
+- For each column `k` in `W_i2h`:
+  - If `k < input_size`, load from `x`
+  - Else, load from `h_prev[k - input_size]`
+
+So we **stream** over the K dimension and load from either `x` or `h_prev` depending on `k`.
+
+### Corrected Strategy:
+
+1. **Do not concatenate**.
+2. **Tile over M and N for output**, and **tile over K (input+hidden)** for reduction.
+3. For each `k` in `[0, input_size + hidden_size)`, load:
+   - `x_val` if `k < input_size`
+   - `h_val` if `k >= input_size`
+4. Load corresponding weight `W[i, k]`, and accumulate.
+
+We'll use a **2D grid**: `(batch, ceil(hidden_size / BLOCK_SIZE))` for computing `i2h`.
+
+But we also need to compute `h2o` — so we may need two kernels.
+
+For now, **split into two kernels** for clarity and correctness.
+
+---
+
+### Final Plan:
+1. **Kernel 1**: RNN cell forward — compute new hidden state.
+   - Input: `x`, `h_prev`, `W_i2h`, `b_i2h`
+   - Output: `h_new`
+2. **Kernel 2**: Output projection — `h2o`
+   - Input: `h_new`, `W_h2o`, `b_h2o`
+   - Output: `out`
+
+We'll write **one kernel at a time**.
+
+But for performance, we can **fuse both** if we use larger grid.
+
+But let's first fix correctness.
+
+We'll write a **fused kernel** that computes both, but **without materializing large tensors**.
+
+---
+
+### Corrected Triton Kernel (Single Kernel, No Concatenation)
+
+<triton>
+import torch
+import triton
+import triton.language as tl
+
+@triton.jit
+def fused_rnncell_kernel(
+    # Pointers to tensors
+    x_ptr, h_prev_ptr, w_i2h_ptr, b_i2h_ptr, w_h2o_ptr, b_h2o_ptr, h_new_ptr, out_ptr,
+    # Dimensions
+    batch_size, input_size, hidden_size, output_size,
+    # Strides
+    stride_xb, stride_hb, stride_wih_k, stride_wih_n, stride_wh2o_k, stride_wh2o_m,
+    stride_hb_new, stride_outb,
+    # Block sizes
+    BLOCK_SIZE_M: tl.constexpr, BLOCK_SIZE_N: tl.constexpr, BLOCK_SIZE_K: tl.constexpr
+):
+    # Program IDs
+    pid_b = tl.program_id(axis=0)  # batch
+    pid_m = tl.program_id(axis=1)  # controls which output dim: for i2h (hidden) or h2o (output)
+
+    # === Part 1: Compute i2h (hidden state update) ===
+    # We compute one row of i2h output per program
+    offs_m = pid_m * BLOCK_SIZE_M + tl.arange(0, BLOCK_SIZE_M)
+    offs_k = tl.arange(0, BLOCK_SIZE_K)
+    mask_m = offs_m < hidden_size
+
+    # Initialize accumulator for i2h
+    acc = tl.zeros((BLOCK_SIZE_M,), dtype=tl.float32)
+
+    # Pointer to x and h_prev for this batch
+    x_batch_ptr = x_ptr + pid_b * stride_xb
+    h_prev_batch_ptr = h_prev_ptr + pid_b * stride_hb
+
+    # Pointer to i2h weight row
+    w_i2h_row_ptr = w_i2h_ptr + offs_m[:, None] * stride_wih_k  # (BLOCK_SIZE_M, 1)
+
+    # Loop over K (input_size + hidden_size) in tiles
+    for k in range(0, input_size + hidden_size, BLOCK_SIZE_K):
+        # Compute mask for current k tile
+        k_mask = offs_k < (input_size + hidden_size)
+
+        # Load weights: W[offs_m, k + offs_k]
+        w = tl.load(
+            w_i2h_row_ptr + (k + offs_k)[None, :] * stride_wih_n,
+            mask=mask_m[:, None] & k_mask[None, :],
+            other=0.0
+        )  # (BLOCK_SIZE_M, BLOCK_SIZE_K)
+
+        # Load data: from x if k+offs_k < input_size, else from h_prev
+        data = tl.zeros((BLOCK_SIZE_K,), dtype=tl.float32)
+        # Case 1: from x
+        mask_x = (k + offs_k) < input_size
+        x_vals = tl.load(
+            x_batch_ptr + (k + offs_k)[mask_x],
+            mask=mask_x,
+            other=0.0
+        )
+        data = tl.where(mask_x, x_vals, data)
+        # Case 2: from h_prev
+        mask_h = (k + offs_k) >= input_size
+        h_vals = tl.load(
+            h_prev_batch_ptr + ((k + offs_k) - input_size)[mask_h],
+            mask=mask_h,
+            other=0.0
+        )
+        data = tl.where(mask_h, h_vals, data)
+
+        # Multiply and accumulate
+        acc += tl.sum(w * data[None, :], axis=1)
+
+        # Move weight pointer
+        w_i2h_row_ptr += BLOCK_SIZE_K * stride_wih_n
+
+    # Add bias
+    b = tl.load(b_i2h_ptr + offs_m, mask=mask_m, other=0.0)
+    acc += b
+
+    # Apply tanh
+    h_new = (tl.exp(2 * acc) - 1) / (tl.exp(2 * acc) + 1)
+
+    # Store new hidden state
+    h_new_ptrs = h_new_ptr + pid_b * stride_hb_new + offs_m * stride_hb_new
+    tl.store(h_new_ptrs, h_new, mask=mask_m)
+
+    # === Part 2: Compute h2o (output) ===
+    # Only if pid_m < output_size
+    if pid_m * BLOCK_SIZE_M < output_size:
+        # We compute one row of h2o output
+        offs_m_out = pid_m * BLOCK_SIZE_M + tl.arange(0, BLOCK_SIZE_M)
+        mask_m_out = offs_m_out < output_size
+
+        # Load h_new (we just computed it)
+        # But we need to reuse `h_new` — it's in registers
+        # Now compute: W_h2o[offs_m_out, :] @ h_new
+        acc_out = tl.zeros((BLOCK_SIZE_M,), dtype=tl.float32)
+        w_h2o_row_ptr = w_h2o_ptr + offs_m_out[:, None] * stride_wh2o_k
+
+        for k in range(0, hidden_size, BLOCK_SIZE_K):
+            k_mask = offs_k < hidden_size
+            w = tl.load(
+                w_h2o_row_ptr + (k + offs_k)[None, :] * stride_wh2o_m,
+                mask=mask_m_out[:, None] & k_mask[None, :],
+                other=0.0
+            )
+            h_k = tl.load(
+                h_new_ptr + pid_b * stride_hb_new + (k + offs_k),
+                mask=k_mask,
+                other=0.0
+            )
+            acc_out += tl.sum(w * h_k[None, :], axis=1)
+            w_h2o_row_ptr += BLOCK_SIZE_K * stride_wh2o_m
+
+        # Add bias
+        b_out = tl.load(b_h2o_ptr + offs_m_out, mask=mask_m_out, other=0.0)
+        acc_out += b_out
+
+        # Store output
+        out_ptrs = out_ptr + pid_b * stride_outb + offs_m_out * stride_outb
+        tl.store(out_ptrs, acc_out, mask=mask_m_out)
+
+
+def triton_kernel_wrapper(x, initial_hidden, input_size: int = 16384, hidden_size: int = 16384, output_size: int = 8192):
+    batch_size = x.shape[0]
+    device = x.device
+    dtype = x.dtype
+
+    # Initialize hidden state
+    if initial_hidden is None:
+        h_prev = torch.randn((batch_size, hidden_size), device=device, dtype=dtype)
+    else:
+        h_prev = initial_hidden
+
+    # Create weights and biases
+    i2h_weight = torch.randn(hidden_size, input_size + hidden_size, device=device, dtype=dtype)
+    i2h_bias = torch.randn(hidden_size, device=device, dtype=dtype)
+    h2o_weight = torch.randn(output_size, hidden_size, device=device, dtype=dtype)
+    h2o_bias = torch.randn(output_size, device=device, dtype=dtype)
+
+    # Output tensors
+    h_new = torch.empty((batch_size, hidden_size), device=device, dtype=dtype)
+    out = torch.empty((batch_size, output_size), device=device, dtype=dtype)
+
+    # Constants
+    BLOCK_SIZE_M = 32
+    BLOCK_SIZE_N = 32  # not used
+    BLOCK_SIZE_K = 32
+
+    # Grid: (batch_size, ceil(hidden_size / BLOCK_SIZE_M)) for i2h
+    # But we also need to cover output_size for h2o
+    grid_dim1 = batch_size
+    grid_dim2 = max(triton.cdiv(hidden_size, BLOCK_SIZE_M), triton.cdiv(output_size, BLOCK_SIZE_M))
+
+    grid = (grid_dim1, grid_dim2)
+
+    fused_rnncell_kernel[grid](
+        x, h_prev, i2h_weight, i2h_bias, h2o_weight, h2o_bias, h_new, out,
+        batch_size, input_size, hidden_size, output_size,
+        x.stride(0), h_prev.stride(0),
+        i2h_weight.stride(0), i2h_weight.stride(1),
+        h2o_weight.stride(0), h2o_weight.stride(1),
+        h_new.stride(1), out.stride(1),
+        BLOCK_SIZE_M=BLOCK_SIZE_M, BLOCK_SIZE_N=BLOCK_SIZE_N, BLOCK_SIZE_K=BLOCK_SIZE_K
+    )
+
+    return out
+</triton>
+
+────────────────────────────────────────────────────────────────────────────────
+Compilation/runtime error:
+RuntimeError: The size of tensor a (32768) must match the size of tensor b (16384) at non-singleton dimension 1
+Traceback (most recent call last):
+  File "/root/modal_app.py", line 506, in benchmark_kernelbench
+    kernel_output = triton_kernel_wrapper(*kernel_args[:len(wrapper_params)])
+  File "/tmp/tmpowfxqhcp_triton.py", line 134, in triton_kernel_wrapper
+RuntimeError: The size of tensor a (32768) must match the size of tensor b (16384) at non-singleton dimension 1
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/root/modal_app.py", line 508, in benchmark_kernelbench
+    raise first_err  # both attempts failed; surface the original error
+  File "/root/modal_app.py", line 496, in benchmark_kernelbench
+    kernel_output = _call_wrapper(cuda_inputs)
+  File "/root/modal_app.py", line 481, in _call_wrapper
+    return triton_kernel_wrapper(*kernel_args[:len(wrapper_params)])
+  File "/tmp/tmpowfxqhcp_triton.py", line 134, in triton_kernel_wrapper
+RuntimeError: The size of tensor a (32768) must match the size of tensor b (16384) at non-singleton dimension 1
+
+
+Fix and regenerate the corrected code inside <triton>...</triton> tags.
+
+────────────────────────────────────────────────────────────────────────────────
+The error message:
+
+```
+RuntimeError: The size of tensor a (32768) must match the size of tensor b (16384) at non-singleton dimension 1
+```
+
+is **not coming from Triton**, but from **PyTorch**, and it's happening **before the kernel is even launched**, likely during **tensor creation or operation in the wrapper**.
+
+But in our `triton_kernel_wrapper`, we don't perform any tensor operations that would cause a shape mismatch — only creation and kernel launch.
+
+However, the line number (134) points to the kernel launch line. This suggests that **one of the tensors we're passing has an incorrect shape**, and **Triton's launch interface is validating tensor strides or shapes**, or **the error is from a PyTorch operation inside the wrapper we can't see**.
+
+But we **do** create `i2h_weight` as:
+
+```python
+i2h_weight = torch.randn(hidden_size, input_size + hidden_size, device=device, dtype=dtype)
+```
+
+With:
+- `hidden_size = 16384`
+- `input_size = 16384`
+→ So `i2h_weight.shape = (16384, 32768)`
+
+And we pass it to the kernel.
+
+But the error says "tensor a (32768) must match tensor b (16384)" — this suggests that somewhere, **two tensors of size 32768 and 16384 are being combined**, like in a `cat`, `add`, or `matmul`.
+
+But we don’t do that in the wrapper.
+
+Ah! **The issue is in the kernel launch**: the **strides** we are passing may be incorrect, causing Triton to misinterpret tensor shapes, leading to a **PyTorch-side validation error** when preparing arguments.
+
+Let’s check the **strides**:
+
+```python
+x.stride(0)  # should be input_size = 16384
+h_prev.stride(0)  # should be hidden_size = 16384
+i2h_weight.stride(0)  # should be 32768
+i2h_weight.stride(1)  # should be 1
+```
+
+But in the kernel, we use:
+
+```python
+stride_wih_k = i2h_weight.stride(0)  # K dimension stride
+stride_wih_n = i2h_weight.stride(1)  # N dimension stride
+```
+
+And we access:
+```python
+w_i2h_ptr + offs_m[:, None] * stride_wih_k + (k + offs_k)[None, :] * stride_wih_n
+```
+
+This is correct for a row-major tensor.
+
+But the error is **not in the kernel**, it's **before launch**.
+
+Wait — the error could be from **memory layout mismatch** during kernel argument packing.
+
+But more likely: **we are passing `h_new.stride(1)` as `stride_hb_new`**, but `h_new` has shape `(batch, hidden_size)`, so `stride(1)` is 1, and `stride(0)` is `hidden_size`.
+
+But in the kernel, we use:
+
+```python
+h_new_ptrs = h_new_ptr + pid_b * stride_hb_new + offs_m * stride_hb_new
+```
+
+Wait — here’s the bug:
+
+```python
+h_new_ptrs = h_new_ptr + pid_b * stride_hb_new + offs_m * stride_hb_new
+```
+
+This assumes `stride_hb_new` is the **row stride** (i.e., `hidden_size`), but we passed `h_new.stride(1)`, which is **1**, not `h_new.stride(0)`.
+
+### Critical Bug:
+We passed:
+```python
+h_new.stride(1)  # = 1
+```
+but we should pass:
+```python
+h_new.stride(0)  # = hidden_size
+```
+
+Similarly for `out.stride(1)` — we should pass `out.stride(0)`.
+
+### Fix:
+Change:
+```python
+h_new.stride(1), out.stride(1),
+```
+to:
+```python
+h_new.stride(0), out.stride(0),
+```
+
+And update variable names for clarity.
+
+Also, in the kernel:
+- `stride_hb_new` should be the **batch stride**, i.e., `hidden_size`
+- So `h_new` element `[b, i]` is at `b * stride_hb_new + i`
+
+We are using `offs_m` as the column index, so:
+```python
+h_new_ptr + pid_b * stride_hb_new + offs_m
+```
+is correct — but only if `stride_hb_new = hidden_size`.
+
+Same for `out`.
+
+---
+
+### Another Bug:
+In the kernel, we use:
+```python
+if pid_m * BLOCK_SIZE_M < output_size:
+```
+But this is **not sufficient** — we should only compute output rows if `pid_m` is in range, but we are using the same `pid_m` for both `i2h` and `h2o`. This means when `hidden_size < output_size`, we may compute `i2h` for `pid_m` beyond `hidden_size`, which is invalid.
+
+We need **two separate launch grids** or **guard with `if`**.
+
+But we can’t easily do that in one kernel.
+
+### Better: Split into two kernels.
+
+But to keep it fused and avoid multiple launches, we’ll **guard every access**.
+
+We’ll fix the **stride issue** first.
+
+---
+
+### Final Fix:
+- Pass `.stride(0)` for batch stride
+- Use correct indexing
+- Guard all memory accesses
+
+<triton>
+import torch
+import triton
+import triton.language as tl
+
+@triton.jit
+def fused_rnncell_kernel(
+    # Pointers to tensors
+    x_ptr, h_prev_ptr, w_i2h_ptr, b_i2h_ptr, w_h2o_ptr, b_h2o_ptr, h_new_ptr, out_ptr,
+    # Dimensions
+    batch_size, input_size, hidden_size, output_size,
+    # Strides: all are batch strides (dim 0)
+    stride_xb, stride_hb, stride_wih_k, stride_wih_n, stride_wh2o_k, stride_wh2o_m,
+    stride_h_new_b, stride_out_b,
+    # Block sizes
+    BLOCK_SIZE_M: tl.constexpr, BLOCK_SIZE_K: tl.constexpr
+):
+    pid_b = tl.program_id(axis=0)  # batch
+    pid_m = tl.program_id(axis=1)  # controls output row for i2h or h2o
+
+    # === Part 1: Compute i2h (hidden state) if pid_m covers hidden_size ===
+    offs_m = pid_m * BLOCK_SIZE_M + tl.arange(0, BLOCK_SIZE_M)
+    offs_k = tl.arange(0, BLOCK_SIZE_K)
+    mask_m = offs_m < hidden_size
+
+    acc = tl.zeros((BLOCK_SIZE_M,), dtype=tl.float32)
+
+    # Base pointers for this batch
+    x_batch = x_ptr + pid_b * stride_xb
+    h_prev_batch = h_prev_ptr + pid_b * stride_hb
+
+    # Weight pointer for W_i2h[offs_m, :]
+    w_i2h_row_ptr = w_i2h_ptr + offs_m[:, None] * stride_wih_k  # (BLOCK_SIZE_M, 1)
+
+    # Loop over K: input_size + hidden_size
+    for k in range(0, input_size + hidden_size, BLOCK_SIZE_K):
+        k_mask = offs_k < (input_size + hidden_size)
+        # Load weights
+        w = tl.load(
+            w_i2h_row_ptr + (k + offs_k)[None, :] * stride_wih_n,
+            mask=mask_m[:, None] & k_mask[None, :],
+            other=0.0
+        )  # (BLOCK_SIZE_M, BLOCK_SIZE_K)
+
+        # Load data: from x or h_prev
+        data = tl.zeros((BLOCK_SIZE_K,), dtype=tl.float32)
+        # From x: k + offs_k < input_size
+        mask_x = (k + offs_k) < input_size
+        x_vals = tl.load(
+            x_batch + (k + offs_k)[mask_x],
+            mask=mask_x,
+            other=0.0
+        )
+        data = tl.where(mask_x, x_vals, data)
+        # From h_prev: k + offs_k >= input_size
+        mask_h = (k + offs_k) >= input_size
+        h_vals = tl.load(
+            h_prev_batch + ((k + offs_k) - input_size)[mask_h],
+            mask=mask_h,
+            other=0.0
+        )
+        data = tl.where(mask_h, h_vals, data)
+
+        acc += tl.sum(w * data[None, :], axis=1)
+        w_i2h_row_ptr += BLOCK_SIZE_K * stride_wih_n
+
+    # Add bias and apply tanh
+    b = tl.load(b_i2h_ptr + offs_m, mask=mask_m, other=0.0)
+    h_new_val = (tl.exp(2 * (acc + b)) - 1) / (tl.exp(2 * (acc + b)) + 1)
+
+    # Store h_new
+    h_new_ptrs = h_new_ptr + pid_b * stride_h_new_b + offs_m
+    tl.store(h_new_ptrs, h_new_val, mask=mask_m)
+
+    # === Part 2: Compute h2o (output) ===
+    # Only if this pid_m is responsible for output rows
+    offs_m_out = pid_m * BLOCK_SIZE_M + tl.arange(0, BLOCK_SIZE_M)
+    mask_m_out = offs_m_out < output_size
+
+    # Skip if no output row to compute
+    if not tl.sum(mask_m_out):
+        return
+
+    acc_out = tl.zeros((BLOCK_SIZE_M,), dtype=tl.float32)
+    w_h2o_row_ptr = w_h2o_ptr + offs_m_out[:, None] * stride_wh2o_k
+
+    # Loop over hidden_size
+    for k in range(0, hidden_size, BLOCK_SIZE_K):
+        k_mask = offs_k < hidden_size
+        w = tl.load(
+            w_h2o_row_ptr + (k + offs_k)[None, :] * stride_wh2o_m,
+            mask=mask_m_out[:, None] & k_mask[None, :],
+            other=0.0
+        )
+        # Load h_new from memory (we just stored it)
+        h_k = tl.load(
+            h_new_ptr + pid_b * stride_h_new_b + (k + offs_k),
+            mask=k_mask,
+            other=0.0
+        )
+        acc_out += tl.sum(w * h_k[None, :], axis=1)
+        w_h2o_row_ptr += BLOCK_SIZE_K * stride_wh2o_m
+
+    # Add bias
+    b_out = tl.load(b_h2o_ptr + offs_m_out, mask=mask_m_out, other=0.0)
+    out_val = acc_out + b_out
+
+    # Store output
+    out_ptrs = out_ptr + pid_b * stride_out_b + offs_m_out
+    tl.store(out_ptrs, out_val, mask=mask_m_out)
+
+
+def triton_kernel_wrapper(x, initial_hidden, input_size: int = 16384, hidden_size: int = 16384, output_size: int = 8192):
+    batch_size = x.shape[0]
+    device = x.device
+    dtype = x.dtype
+
+    # Initialize hidden state
+    if initial_hidden is None:
+        h_prev = torch.randn((batch_size, hidden_size), device=device, dtype=dtype)
+    else:
+        h_prev = initial_hidden
+
+    # Create weights and biases
+    i2h_weight = torch.randn(hidden_size, input_size + hidden_size, device=device, dtype=dtype)
+    i2h_bias = torch.randn(hidden_size, device=device, dtype=dtype)
+    h2o_weight = torch.randn(output_size, hidden_size, device=device, dtype=dtype)
+    h2o_bias = torch.randn(output_size, device=device, dtype=dtype)
+
+    # Output tensors
+    h_new = torch.empty((batch_size, hidden_size), device=device, dtype=dtype)
+    out = torch.empty((batch_size, output_size), device=device, dtype=dtype)
+
+    # Block sizes
+    BLOCK_SIZE_M = 32
+    BLOCK_SIZE_K = 32
+
+    # Grid: (batch_size, number of blocks to cover max(hidden_size, output_size))
+    grid_dim1 = batch_size
+    grid_dim2 = max(triton.cdiv(hidden_size, BLOCK_SIZE_M), triton.cdiv(output_size, BLOCK_SIZE_M))
+    grid = (grid_dim1, grid_dim2)
+
+    # Launch kernel
+    fused_rnncell_kernel[grid](
+        x, h_prev, i2h_weight, i2h_bias, h2o_weight, h2o_bias, h_new, out,
+        batch_size, input_size, hidden_size, output_size,
+        x.stride(0), h_prev.stride(0),
+        i2h_weight.stride(0), i2h_weight.stride(1),
+        h2o_weight.stride(0), h2o_weight.stride(1),
+        h_new.stride(0), out.stride(0),  # Fixed: use stride(0), not stride(1)
+        BLOCK_SIZE_M=BLOCK_SIZE_M, BLOCK_SIZE_K=BLOCK_SIZE_K
+    )
+
+    return out
+</triton>
+
+────────────────────────────────────────────────────────────────────────────────
+Compilation/runtime error:
+RuntimeError: The size of tensor a (32768) must match the size of tensor b (16384) at non-singleton dimension 1
+Traceback (most recent call last):
+  File "/root/modal_app.py", line 506, in benchmark_kernelbench
+    kernel_output = triton_kernel_wrapper(*kernel_args[:len(wrapper_params)])
+  File "/tmp/tmppr09am9e_triton.py", line 124, in triton_kernel_wrapper
+RuntimeError: The size of tensor a (32768) must match the size of tensor b (16384) at non-singleton dimension 1
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/root/modal_app.py", line 508, in benchmark_kernelbench
+    raise first_err  # both attempts failed; surface the original error
+  File "/root/modal_app.py", line 496, in benchmark_kernelbench
+    kernel_output = _call_wrapper(cuda_inputs)
+  File "/root/modal_app.py", line 481, in _call_wrapper
+    return triton_kernel_wrapper(*kernel_args[:len(wrapper_params)])
+  File "/tmp/tmppr09am9e_triton.py", line 124, in triton_kernel_wrapper
+RuntimeError: The size of tensor a (32768) must match the size of tensor b (16384) at non-singleton dimension 1
+
+
+Fix and regenerate the corrected code inside <triton>...</triton> tags.
+
+────────────────────────────────────────────────────────────────────────────────
+The persistent error:
+
+```
+RuntimeError: The size of tensor a (32768) must match the size of tensor b (16384) at non-singleton dimension 1
+```
+
+is **not originating from our Triton kernel**, but from **PyTorch's tensor operation** — **before** the kernel launch. This means the error is in the **wrapper**, specifically in **tensor creation or manipulation**.
+
+But we only do:
+```python
+i2h_weight = torch.randn(hidden_size, input_size + hidden_size, ...)
+```
+→ Shape: `(16384, 32768)`
+
+And:
+```python
+x = torch.rand(batch_size, input_size)  # (256, 16384)
+h_prev = torch.rand(batch_size, hidden_size)  # (256, 16384)
+```
+
+There is **no operation** between a 32768-sized and 16384-sized tensor.
+
+Unless... **the error is misleading**, and the **real issue is a typo in tensor stride or shape passed to the kernel**, causing **Triton to misinterpret memory**, which then causes **PyTorch to detect corruption**.
+
+But the error occurs at the kernel launch line — **not inside**.
+
+Wait — **could the error be from a previous test run**? Or from **Modal's benchmarking code**?
+
+Alternatively, **the wrapper signature is wrong**.
+
+Look at `get_inputs()`:
+```python
+def get_inputs():
+    return [torch.rand(batch_size, input_size), torch.rand(batch_size, hidden_size)]
+```
+
+So `triton_kernel_wrapper` is called with:
+```python
+triton_kernel_wrapper(x, initial_hidden)
+```
+
+But in our wrapper:
+```python
+def triton_kernel_wrapper(x, initial_hidden, input_size: int = 16384, hidden_size: int = 16384, output_size: int = 8192):
+```
+
+This is correct.
+
+But — **what if `initial_hidden` is not of shape `(batch_size, hidden_size)`**? What if it's `(batch_size, input_size)`?
+
+No — `get_inputs()` passes `torch.rand(batch_size, hidden_size)` as second argument.
+
+But `input_size = 16384`, `hidden_size = 16384` — they are **equal**.
+
+So `(batch_size, input_size)` and `(batch_size, hidden_size)` are both `(256, 16384)`.
+
+So why 32768?
+
+Ah! `input_size + hidden_size = 32768`.
+
+The only tensor of size 32768 is `i2h_weight`'s second dimension.
+
+But we are not operating on it.
+
+Unless — **the error is from a fused bias or weight that Modal expects to be a certain size**.
+
+Alternatively, **we are accidentally using `input_size` where we should use `hidden_size`**.
+
+But the real issue may be **simpler**: **Modal's error message is from a different kernel**, or **the wrapper is being called with wrong arguments**.
+
+But we must fix it.
+
+### New Hypothesis:
+The error is **not in our code**, but the **error message is misleading**. The actual issue is **memory corruption due to out-of-bounds access** in the kernel, which **corrupts tensor metadata**, making PyTorch think a tensor has size 32768 when it should be 16384.
+
+So we must **ensure all memory accesses are in bounds**.
+
+### Critical Fix:
+In the kernel, when loading `x` values:
+```python
+x_vals = tl.load(
+    x_batch + (k + offs_k)[mask_x],
+    mask=mask_x,
+    other=0.0
+)
+```
+
+This is **invalid**. `tl.load` expects a **pointer array**, not indexing with a mask.
+
+We must use:
+```python
+ptrs = x_batch + (k + offs_k)
+x_vals = tl.load(ptrs, mask=mask_x, other=0.0)
+```
+
+Similarly for `h_prev`.
+
+### Correct Pattern:
+```python
+ptrs = base_ptr + offsets
+vals = tl.load(ptrs, mask=mask, other=0.0)
+```
+
+We were doing `(k + offs_k)[mask_x]` — which is **Python indexing**, not allowed in Triton.
+
+This is the **real bug**.
+
+### Fix All Memory Accesses
+
+<triton>
+import torch
+import triton
+import triton.language as tl
+
+@triton.jit
+def fused_rnncell_kernel(
+    x_ptr, h_prev_ptr, w_i2h_ptr, b_i2h_ptr, w_h2o_ptr, b_h2o_ptr, h_new_ptr, out_ptr,
+    batch_size, input_size, hidden_size, output_size,
+    stride_xb, stride_hb, stride_wih_k, stride_wih_n, stride_wh2o_k, stride_wh2o_m,
+    stride_h_new_b, stride_out_b,
+    BLOCK_SIZE_M: tl.constexpr, BLOCK_SIZE_K: tl.constexpr
+):
+    pid_b = tl.program_id(axis=0)  # batch
+    pid_m = tl.program_id(axis=1)  # row index for output
+
+    # ===== Part 1: Compute new hidden state h_new = tanh(W_i2h @ [x; h_prev] + b) =====
+    offs_m = pid_m * BLOCK_SIZE_M + tl.arange(0, BLOCK_SIZE_M)
+    offs_k = tl.arange(0, BLOCK_SIZE_K)
+    mask_m = offs_m < hidden_size
+
+    acc = tl.zeros((BLOCK_SIZE_M,), dtype=tl.float32)
+
+    # Base pointers for x and h_prev for this batch
+    x_batch = x_ptr + pid_b * stride_xb
+    h_prev_batch = h_prev_ptr + pid_b * stride_hb
+
+    # Weight pointer for W_i2h[offs_m, :]
+    w_i2h_row_ptr = w_i2h_ptr + offs_m[:, None] * stride_wih_k
+
+    # Loop over K dimension: input_size + hidden_size
+    for k in range(0, input_size + hidden_size, BLOCK_SIZE_K):
+        # Current k offsets
+        k_offs = k + offs_k
+        k_mask = k_offs < (input_size + hidden_size)
+
+        # Load weights: W_i2h[offs_m, k_offs]
+        w_ptr = w_i2h_row_ptr + k_offs[None, :] * stride_wih_n
+        w = tl.load(w_ptr, mask=mask_m[:, None] & k_mask[None, :], other=0.0)
+
+        # Load data: from x if k_offs < input_size, else from h_prev
+        data = tl.zeros((BLOCK_SIZE_K,), dtype=tl.float32)
+        # From x
+        mask_x = k_offs < input_size
+        x_ptrs = x_batch + k_offs
+        x_vals = tl.load(x_ptrs, mask=mask_x, other=0.0)
+        data = tl.where(mask_x, x_vals, data)
+        # From h_prev
+        mask_h = k_offs >= input_size
+        h_ptrs = h_prev_batch + (k_offs - input_size)
+        h_vals = tl.load(h_ptrs, mask=mask_h, other=0.0)
+        data = tl.where(mask_h, h_vals, data)
+
+        # Accumulate
+        acc += tl.sum(w * data[None, :], axis=1)
+        # Move weight pointer
+        w_i2h_row_ptr += BLOCK_SIZE_K * stride_wih_n
+
+    # Add bias and apply tanh
+    b = tl.load(b_i2h_ptr + offs_m, mask=mask_m, other=0.0)
+    h_new_val = (tl.exp(2 * (acc + b)) - 1) / (tl.exp(2 * (acc + b)) + 1)
+
+    # Store h_new
+    h_new_ptrs = h_new_ptr + pid_b * stride_h_new_b + offs_m
+    tl.store(h_new_ptrs, h_new_val, mask=mask_m)
+
+    # ===== Part 2: Compute output o = W_h2o @ h_new + b_h2o =====
+    offs_m_out = pid_m * BLOCK_SIZE_M + tl.arange(0, BLOCK_SIZE_M)
+    mask_m_out = offs_m_out < output_size
+
+    # Early exit if no output to compute
+    if not tl.sum(mask_m_out):
+        return
+
+    acc_out = tl.zeros((BLOCK_SIZE_M,), dtype=tl.float32)
+    w_h2o_row_ptr = w_h2o_ptr + offs_m_out[:, None] * stride_wh2o_k
+
+    # Loop over hidden_size
+    for k in range(0, hidden_size, BLOCK_SIZE_K):
+        k_offs = k + offs_k
+        k_mask = k_offs < hidden_size
+
+        # Load weights
+        w_ptr = w_h2o_row_ptr + k_offs[None, :] * stride_wh2o_m
+        w = tl.load(w_ptr, mask=mask_m_out[:, None] & k_mask[None, :], other=0.0)
+
+        # Load h_new
+        h_ptrs = h_new_ptr + pid_b * stride_h_new_b + k_offs
+        h_vals = tl.load(h_ptrs, mask=k_mask, other=0.0)
+
+        acc_out += tl.sum(w * h_vals[None, :], axis=1)
+        w_h2o_row_ptr += BLOCK_SIZE_K * stride_wh2o_m
+
+    # Add bias
+    b_out = tl.load(b_h2o_ptr + offs_m_out, mask=mask_m_out, other=0.0)
+    out_val = acc_out + b_out
+
+    # Store output
+    out_ptrs = out_ptr + pid_b * stride_out_b + offs_m_out
+    tl.store(out_ptrs, out_val, mask=mask_m_out)
+
+
+def triton_kernel_wrapper(x, initial_hidden, input_size: int = 16384, hidden_size: int = 16384, output_size: int = 8192):
+    batch_size = x.shape[0]
+    device = x.device
+    dtype = x.dtype
+
+    # Initialize hidden state
+    if initial_hidden is None:
+        h_prev = torch.randn((batch_size, hidden_size), device=device, dtype=dtype)
+    else:
+        h_prev = initial_hidden
+
+    # Create weights and biases
+    i2h_weight = torch.randn(hidden_size, input_size + hidden_size, device=device, dtype=dtype)
+    i2h_bias = torch.randn(hidden_size, device=device, dtype=dtype)
+    h2o_weight = torch.randn(output_size, hidden_size, device=device, dtype=dtype)
+    h2o_bias = torch.randn(output_size, device=device, dtype=dtype)
+
+    # Output tensors
+    h_new = torch.empty((batch_size, hidden_size), device=device, dtype=dtype)
+    out = torch.empty((batch_size, output_size), device=device, dtype=dtype)
+
+    # Block sizes
+    BLOCK_SIZE_M = 32
+    BLOCK_SIZE_K = 32
+
+    # Grid: (batch_size, number of blocks to cover max(hidden_size, output_size))
+    grid_dim1 = batch_size
+    grid_dim2 = max(triton.cdiv(hidden_size, BLOCK_SIZE_M), triton.cdiv(output_size, BLOCK_SIZE_M))
+    grid = (grid_dim1, grid_dim2)
+
+    # Launch kernel
+    fused_rnncell_kernel[grid](
+        x, h_prev, i2h_weight, i2h_bias, h2o_weight, h2o_bias, h_new, out,
+        batch_size, input_size, hidden_size, output_size,
+        x.stride(0), h_prev.stride(0),
+        i2h_weight.stride(0), i2h_weight.stride(1),
+        h2o_weight.stride(0), h2o_weight.stride(1),
+        h_new.stride(0), out.stride(0),
+        BLOCK_SIZE_M=BLOCK_SIZE_M, BLOCK_SIZE_K=BLOCK_SIZE_K
+    )
+
+    return out
+</triton>
+

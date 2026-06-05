@@ -1,0 +1,250 @@
+{
+  "total_traces": 207,
+  "flagged_count": 48,
+  "summary": {
+    "correctness_flip_no_change": 30,
+    "decreasing_quality": 18
+  },
+  "flagged_traces": {
+    "kernelbook_1174": {
+      "correctness_flip_no_change": [
+        "Turn 1->2: correctness flipped (False->True) but code similarity=0.96"
+      ]
+    },
+    "kernelbook_899": {
+      "correctness_flip_no_change": [
+        "Turn 1->2: correctness flipped (False->True) but code similarity=0.96"
+      ]
+    },
+    "kernelbook_1425": {
+      "correctness_flip_no_change": [
+        "Turn 2->3: correctness flipped (False->True) but code similarity=0.97"
+      ]
+    },
+    "kernelbook_735": {
+      "correctness_flip_no_change": [
+        "Turn 1->2: correctness flipped (False->True) but code similarity=0.99"
+      ]
+    },
+    "kernelbook_646": {
+      "correctness_flip_no_change": [
+        "Turn 1->2: correctness flipped (False->True) but code similarity=0.97"
+      ]
+    },
+    "kernelbook_1158": {
+      "correctness_flip_no_change": [
+        "Turn 2->3: correctness flipped (False->True) but code similarity=0.96"
+      ]
+    },
+    "kernelbook_82": {
+      "correctness_flip_no_change": [
+        "Turn 3->4: correctness flipped (False->True) but code similarity=0.95"
+      ]
+    },
+    "kernelbook_377": {
+      "correctness_flip_no_change": [
+        "Turn 1->2: correctness flipped (False->True) but code similarity=0.97"
+      ]
+    },
+    "kernelbook_1090": {
+      "correctness_flip_no_change": [
+        "Turn 2->3: correctness flipped (False->True) but code similarity=0.98"
+      ]
+    },
+    "kernelbook_1750": {
+      "correctness_flip_no_change": [
+        "Turn 3->4: correctness flipped (False->True) but code similarity=0.97"
+      ]
+    },
+    "kernelbook_1489": {
+      "correctness_flip_no_change": [
+        "Turn 1->2: correctness flipped (False->True) but code similarity=0.99"
+      ]
+    },
+    "kernelbook_2396": {
+      "correctness_flip_no_change": [
+        "Turn 3->4: correctness flipped (False->True) but code similarity=1.00"
+      ]
+    },
+    "kernelbook_723": {
+      "correctness_flip_no_change": [
+        "Turn 1->2: correctness flipped (False->True) but code similarity=1.00"
+      ]
+    },
+    "kernelbook_464": {
+      "correctness_flip_no_change": [
+        "Turn 3->4: correctness flipped (False->True) but code similarity=0.95"
+      ]
+    },
+    "kernelbook_1264": {
+      "correctness_flip_no_change": [
+        "Turn 2->3: correctness flipped (False->True) but code similarity=0.98"
+      ]
+    },
+    "kernelbook_2342": {
+      "correctness_flip_no_change": [
+        "Turn 2->3: correctness flipped (False->True) but code similarity=0.98"
+      ]
+    },
+    "kernelbook_1050": {
+      "correctness_flip_no_change": [
+        "Turn 1->2: correctness flipped (False->True) but code similarity=0.98"
+      ]
+    },
+    "kernelbook_1812": {
+      "correctness_flip_no_change": [
+        "Turn 3->4: correctness flipped (False->True) but code similarity=0.98"
+      ]
+    },
+    "kernelbook_1223": {
+      "correctness_flip_no_change": [
+        "Turn 2->3: correctness flipped (False->True) but code similarity=1.00"
+      ]
+    },
+    "kernelbook_632": {
+      "correctness_flip_no_change": [
+        "Turn 1->2: correctness flipped (False->True) but code similarity=0.99"
+      ]
+    },
+    "kernelbook_1496": {
+      "decreasing_quality": [
+        "Turn 1 was correct but final turn 4 was not"
+      ]
+    },
+    "kernelbook_1000": {
+      "correctness_flip_no_change": [
+        "Turn 1->2: correctness flipped (False->True) but code similarity=0.98"
+      ]
+    },
+    "kernelbench_82": {
+      "correctness_flip_no_change": [
+        "Turn 1->2: correctness flipped (False->True) but code similarity=0.97"
+      ]
+    },
+    "kernelbook_1733": {
+      "decreasing_quality": [
+        "Turn 1 was correct but final turn 4 was not"
+      ]
+    },
+    "kernelbook_434": {
+      "decreasing_quality": [
+        "Turn 1 was correct but final turn 4 was not"
+      ]
+    },
+    "kernelbook_1409": {
+      "decreasing_quality": [
+        "Turn 1 was correct but final turn 4 was not"
+      ]
+    },
+    "kernelbook_1550": {
+      "decreasing_quality": [
+        "Turn 1 was correct but final turn 4 was not"
+      ]
+    },
+    "kernelbook_1031": {
+      "decreasing_quality": [
+        "Turn 1 was correct but final turn 4 was not"
+      ]
+    },
+    "kernelbench_39": {
+      "decreasing_quality": [
+        "Turn 1 was correct but final turn 4 was not"
+      ]
+    },
+    "kernelbook_490": {
+      "decreasing_quality": [
+        "Turn 1 was correct but final turn 4 was not"
+      ]
+    },
+    "kernelbook_2567": {
+      "correctness_flip_no_change": [
+        "Turn 1->2: correctness flipped (False->True) but code similarity=0.95"
+      ]
+    },
+    "kernelbook_905": {
+      "correctness_flip_no_change": [
+        "Turn 2->3: correctness flipped (False->True) but code similarity=0.99"
+      ]
+    },
+    "kernelbook_953": {
+      "decreasing_quality": [
+        "Turn 1 was correct but final turn 4 was not"
+      ]
+    },
+    "kernelbook_2947": {
+      "correctness_flip_no_change": [
+        "Turn 2->3: correctness flipped (False->True) but code similarity=1.00"
+      ]
+    },
+    "kernelbook_2483": {
+      "decreasing_quality": [
+        "Turn 1 was correct but final turn 4 was not"
+      ]
+    },
+    "kernelbook_430": {
+      "decreasing_quality": [
+        "Turn 1 was correct but final turn 4 was not"
+      ]
+    },
+    "kernelbook_2081": {
+      "decreasing_quality": [
+        "Turn 1 was correct but final turn 4 was not"
+      ]
+    },
+    "kernelbook_1108": {
+      "decreasing_quality": [
+        "Turn 1 was correct but final turn 4 was not"
+      ]
+    },
+    "kernelbook_920": {
+      "decreasing_quality": [
+        "Turn 1 was correct but final turn 4 was not"
+      ]
+    },
+    "kernelbook_57": {
+      "decreasing_quality": [
+        "Turn 1 was correct but final turn 4 was not"
+      ]
+    },
+    "kernelbook_2944": {
+      "correctness_flip_no_change": [
+        "Turn 2->3: correctness flipped (False->True) but code similarity=0.95"
+      ]
+    },
+    "kernelbook_2518": {
+      "decreasing_quality": [
+        "Turn 1 was correct but final turn 4 was not"
+      ]
+    },
+    "kernelbook_2852": {
+      "correctness_flip_no_change": [
+        "Turn 2->3: correctness flipped (False->True) but code similarity=0.96"
+      ]
+    },
+    "kernelbook_1537": {
+      "decreasing_quality": [
+        "Turn 1 was correct but final turn 4 was not"
+      ]
+    },
+    "kernelbook_1912": {
+      "correctness_flip_no_change": [
+        "Turn 1->2: correctness flipped (False->True) but code similarity=0.97"
+      ]
+    },
+    "kernelbook_1503": {
+      "correctness_flip_no_change": [
+        "Turn 2->3: correctness flipped (False->True) but code similarity=0.98"
+      ]
+    },
+    "kernelbook_2957": {
+      "decreasing_quality": [
+        "Turn 1 was correct but final turn 4 was not"
+      ]
+    },
+    "kernelbook_2325": {
+      "correctness_flip_no_change": [
+        "Turn 3->4: correctness flipped (False->True) but code similarity=0.97"
+      ]
+    }
+  }
+}

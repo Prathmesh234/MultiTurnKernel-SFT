@@ -1,0 +1,16 @@
+# Environment variables (contains secrets/endpoints)
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Model outputs
+*.bin
+*.safetensors

@@ -1,0 +1,851 @@
+"""
+Orchestrator for generating reasoning traces with GLM-4.5-Air.
+
+This script:
+1. Loads PyTorch code from KernelBook and KernelBench via dataloader
+2. Sends each problem to GLM-4.5-Air (running locally via vLLM)
+3. Extracts the generated Triton kernel code
+4. Validates correctness + measures speedup on Modal H100
+5. Saves verified traces to reasoning_traces.json
+"""
+
+import json
+import os
+import asyncio
+import aiohttp
+from datetime import datetime
+from pathlib import Path
+from typing import Optional
+from tqdm import tqdm
+
+from dataloader import KernelDataLoader
+from multi_turn_queue import MultiTurnQueue
+
+# Import Modal app and function for remote execution
+import modal
+from modal_app import app as modal_app, benchmark_kernelbench
+from utilities import pre_validate_triton_code, load_solved_keys, extract_triton_code
+
+# Configuration
+VLLM_BASE_URL = "http://localhost:8000/v1"
+MODEL_NAME = "Qwen/Qwen3-235B-A22B-Thinking-2507-FP8"
+OUTPUT_FILE = "traces/reasoning_traces.json"
+OUTPUT_FILE_MULTITURN = "traces/reasoning_traces_multiturn_qwen.json"
+OUTPUT_FILE_MULTITURN_FAILED = "traces/reasoning_traces_multiturn_failed.json"
+OUTPUT_FILE_MULTITURN_CORRECT = "traces/reasoning_traces_correct_multiturn.json"
+MAX_MODEL_LEN = 131072  # Must match --max-model-len on vLLM server (Qwen3-235B = 131072)
+MAX_COMPLETION_TOKENS = 32768  # Upper bound; dynamically capped per request
+TEMPERATURE = 0.7
+
+SYSTEM_PROMPT = """You are an expert GPU kernel engineer. Your task is to convert PyTorch code into optimized Triton kernels.
+
+=== TRITON PRIMER: CORE CONCEPTS ===
+
+1. SPMD PROGRAMMING MODEL
+   Triton uses Single Program, Multiple Data: the SAME kernel code runs on many GPU threads simultaneously.
+   Each thread (program instance) processes a different portion of data.
+   
+   Key insight: Use tl.program_id() to determine which data THIS instance should process.
+   
+   Example: To process array of size N with BLOCK_SIZE per program:
+   - Program 0 processes elements [0, BLOCK_SIZE)
+   - Program 1 processes elements [BLOCK_SIZE, 2*BLOCK_SIZE)
+   - etc.
+
+2. COMPILE-TIME vs RUNTIME
+   Triton kernels are COMPILED before execution. Some values must be known at compile-time.
+   
+   COMPILE-TIME (tl.constexpr):
+   - BLOCK_SIZE, num_warps, num_stages
+   - Arguments to tl.arange(start, end) - both must be constants
+   - Tensor shape parameters marked with : tl.constexpr
+   
+   RUNTIME:
+   - Actual data values
+   - Loop bounds (range(0, N, BLOCK_SIZE) is fine - N can be runtime)
+   - Loaded tensor elements
+   
+   CRITICAL: tl.arange(0, BLOCK_SIZE) ✓  but  tl.arange(0, n) where n is runtime ✗
+   Solution: Use fixed BLOCK_SIZE with masking for boundaries
+
+3. MEMORY SAFETY
+   GPU memory is accessed via pointers. Out-of-bounds access causes crashes.
+   
+   Always use MASKING:
+   ```python
+   offsets = pid * BLOCK_SIZE + tl.arange(0, BLOCK_SIZE)
+   mask = offsets < N  # Check boundaries
+   data = tl.load(ptr + offsets, mask=mask, other=0.0)  # Safe
+   ```
+   
+   The mask ensures we only touch valid memory locations.
+
+4. MATRIX OPERATIONS
+   tl.dot(A, B) performs matrix multiplication:
+   - Requires A.shape = (M, K) and B.shape = (K, N)
+   - Results in shape (M, N)
+   - Use tl.trans(B) if B is (N, K) to get (K, N)
+   
+   Common pattern for GEMM:
+   ```python
+   # Load tiles
+   a = tl.load(...)  # Shape: (BLOCK_M, BLOCK_K)
+   b = tl.load(...)  # Shape: (BLOCK_N, BLOCK_K)
+   # Transpose b to match dimensions
+   b_t = tl.trans(b)  # Now: (BLOCK_K, BLOCK_N)
+   # Multiply
+   c = tl.dot(a, b_t)  # Result: (BLOCK_M, BLOCK_N)
+   ```
+
+=== YOUR TASK ===
+
+For each PyTorch operation, you should:
+1. Analyze the operation and memory access patterns
+2. Reason through how to parallelize it
+3. Choose appropriate BLOCK_SIZE and num_warps (num_warps controls thread parallelism per block, typically 4 or 8)
+4. Write the complete Triton kernel implementation
+
+Reason through the conversion before writing code. Then provide the complete
+Triton implementation inside <triton>...</triton> tags:
+
+<triton>
+import torch
+import triton
+import triton.language as tl
+
+@triton.jit
+def kernel_name(...):
+    # Your Triton kernel implementation
+    ...
+
+def triton_kernel_wrapper(input_tensors):
+    # Wrapper that calls the kernel and returns output
+    ...
+</triton>
+
+=== CRITICAL REQUIREMENTS ===
+
+1. The wrapper function MUST be named `triton_kernel_wrapper`
+2. The wrapper takes the SAME inputs as Model.forward() - just the input tensors, NOT model weights
+3. If the model has weights (nn.Linear, nn.Conv2d, etc.), accept them as additional parameters in the wrapper - the benchmark harness will pass the reference model's weights automatically
+4. **IMPORTANT**: If get_init_inputs() returns parameters (e.g., {'quantiles': 4, 'hidden_size': 128}), the wrapper MUST accept these as keyword arguments with defaults matching those values
+5. **Triton API Limitations**: tl.tanh, tl.pow, tl.unsqueeze do NOT exist - use tl.exp for tanh, ** operator for pow, reshape for unsqueeze
+
+=== TRITON KERNEL RULES - MUST FOLLOW ===
+
+IMPORTS:
+```python
+import triton
+import triton.language as tl
+import torch  # wrapper only - for tensor allocation, NEVER inside @triton.jit
+```
+
+INSIDE @triton.jit KERNELS - Use ONLY triton.language (tl) operations:
+- tl.load(), tl.store() - memory access
+- tl.arange(), tl.zeros(), tl.full() - tensor creation
+- tl.sum(), tl.max(), tl.min() - reductions
+- tl.exp(), tl.log(), tl.sqrt(), tl.abs() - math ops
+- tl.maximum(), tl.minimum() - element-wise min/max
+- tl.where() - conditional selection
+- tl.program_id(), tl.num_programs() - grid info
+- Standard operators: +, -, *, /, %, <, >, ==, &, |
+
+NEVER use inside @triton.jit:
+- torch.* functions (torch.sum, torch.mean, torch.relu, etc.)
+- .pow(), .sqrt(), .exp() methods on tensors - use ** operator for pow, tl.sqrt(), tl.exp() for others
+- Python classes or objects
+- nn.* modules
+
+CONSTEXPR RULES:
+- tl.arange(start, end) - both start and end MUST be constants or tl.constexpr
+- BLOCK_SIZE: tl.constexpr in kernel signature
+- Use powers of 2: 64, 128, 256, 512, 1024
+
+REDUCTION PATTERN:
+```python
+# CORRECT - accumulate in block-sized buffer, reduce once at end
+acc = tl.zeros([BLOCK_SIZE], dtype=tl.float32)
+for i in range(0, N, BLOCK_SIZE):
+    offsets = i + tl.arange(0, BLOCK_SIZE)
+    mask = offsets < N
+    x = tl.load(ptr + offsets, mask=mask, other=0.0)
+    acc += x
+result = tl.sum(acc)
+
+# WRONG - shape mismatch in loop
+acc = tl.zeros([1], dtype=tl.float32)
+acc += tl.sum(x)  # ERROR: shape changes!
+```
+
+WRAPPER FUNCTION PATTERN:
+```python
+def triton_kernel_wrapper(x):
+    B, C = x.shape
+    output = torch.empty((B, C), dtype=x.dtype, device=x.device)
+
+    # Dimension args to torch.empty/randn/zeros must be Python ints:
+    # CORRECT: torch.empty((B, C), ...)       -- B, C are ints from shape unpacking
+    # CORRECT: torch.randn(int(N), int(M))    -- explicit int() conversion
+    # WRONG:   torch.randn(some_tensor, ...)   -- Tensor as shape arg crashes
+
+    # Never use a multi-element Tensor in a Python if/while:
+    # WRONG:   if some_tensor:
+    # CORRECT: if some_tensor.item() > 0:
+
+    BLOCK_SIZE = 1024
+    grid = (triton.cdiv(x.numel(), BLOCK_SIZE),)
+    my_kernel[grid](x, output, x.numel(), BLOCK_SIZE=BLOCK_SIZE)
+
+    return output
+```
+
+COMMON OPERATIONS:
+- ReLU: tl.maximum(x, 0.0)
+- Sigmoid: 1.0 / (1.0 + tl.exp(-x))
+- Tanh: (tl.exp(2*x) - 1) / (tl.exp(2*x) + 1)
+- Softmax: exp_x = tl.exp(x - tl.max(x)); exp_x / tl.sum(exp_x)
+- Mean: tl.sum(x) / n_elements
+
+USE ASCII ONLY - no unicode characters like – or —, use - instead.
+"""
+
+
+USER_PROMPT_TEMPLATE = """Convert the following PyTorch code to an optimized Triton kernel:
+
+```python
+{pytorch_code}
+```
+
+Generate a complete Triton implementation that produces the same output as the PyTorch code."""
+
+MULTI_TURN_ADDENDUM = """
+
+=== MULTI-TURN FEEDBACK ===
+
+You may receive feedback on your generated kernel if it fails validation
+or is slower than PyTorch. When you receive feedback, analyze the error
+or performance issue, then generate an improved version. Always provide
+the corrected code inside <triton>...</triton> tags.
+"""
+
+
+class TraceOrchestrator:
+    """
+    Orchestrates the trace generation pipeline.
+    """
+    
+    def __init__(
+        self,
+        vllm_base_url: str = VLLM_BASE_URL,
+        output_file: str = OUTPUT_FILE,
+        kernelbook_samples: int = 1500,
+        kernelbench_samples: int = 500,
+    ):
+        self.vllm_base_url = vllm_base_url
+        self.output_file = Path(output_file)
+        self.dataloader = KernelDataLoader(
+            kernelbook_samples=kernelbook_samples,
+            kernelbench_samples=kernelbench_samples,
+        )
+        
+        # Load existing traces if resuming
+        self.traces = self._load_existing_traces()
+        self.processed_keys = {self._get_sample_key(t) for t in self.traces}
+        
+        # Ensure the output file exists or is updated immediately
+        self._save_traces()
+        
+    def _load_existing_traces(self) -> list:
+        """Load existing traces from output file if it exists."""
+        if self.output_file.exists():
+            with open(self.output_file, "r") as f:
+                return json.load(f)
+        return []
+    
+    def _save_traces(self):
+        """Save traces to output file."""
+        with open(self.output_file, "w") as f:
+            json.dump(self.traces, f, indent=2, default=str)
+    
+    def _get_sample_key(self, sample: dict) -> str:
+        """Generate unique key for a sample to detect duplicates."""
+        source = sample.get("source", "unknown")
+        if source == "kernelbench":
+            return f"kernelbench_{sample.get('problem_id', 'unknown')}"
+        else:
+            return f"kernelbook_{sample.get('index', hash(sample.get('pytorch_code', '')[:100]))}"
+    
+    async def generate_completion(
+        self,
+        messages: list[dict],
+        session: aiohttp.ClientSession,
+    ) -> Optional[dict]:
+        """
+        Generate a Triton kernel completion
+
+        Args:
+            messages: The conversation messages to send
+            session: aiohttp session for requests
+
+        Returns:
+            Dict with 'content' and 'reasoning' fields, or None if failed
+        """
+        # Reasoning is extracted natively by vLLM's --reasoning-parser flag.
+        # The response returns reasoning_content (thinking) separately from content.
+        # To disable reasoning, pass: extra_body={"chat_template_kwargs": {"enable_thinking": False}}
+        
+        # Dynamically compute max_tokens to fit within the context window.
+        # Estimate input tokens (~3.5 chars/token) and leave room for them.
+        total_input_chars = sum(len(m["content"]) for m in messages)
+        estimated_input_tokens = int(total_input_chars / 3.5) + 50  # safety margin
+        max_tokens = min(MAX_COMPLETION_TOKENS, MAX_MODEL_LEN - estimated_input_tokens)
+        max_tokens = max(max_tokens, 1024)  # floor so we always generate something
+        
+        payload = {
+            "model": MODEL_NAME,
+            "messages": messages,
+            "max_tokens": max_tokens,
+            "temperature": TEMPERATURE,
+            "chat_template_kwargs": {"enable_thinking": True},  # Explicitly enable Qwen3 reasoning/thinking mode
+        }
+        
+        try:
+            async with session.post(
+                f"{self.vllm_base_url}/chat/completions",
+                json=payload,
+                timeout=aiohttp.ClientTimeout(total=900),  # 15 min — thinking model generates many tokens
+            ) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    message = data["choices"][0]["message"]
+                    raw_content = message.get("content") or ""
+
+                    # vLLM 0.16.0 strips <think> but leaves </think> in content and
+                    # does not populate the reasoning field. Split manually.
+                    reasoning = message.get("reasoning") or message.get("reasoning_content")
+                    if not reasoning and "</think>" in raw_content:
+                        parts = raw_content.split("</think>", 1)
+                        reasoning = parts[0].strip()
+                        raw_content = parts[1].strip()
+
+                    return {
+                        "content": raw_content,
+                        "reasoning": reasoning,
+                        "usage": data.get("usage")
+                    }
+                else:
+                    error = await response.text()
+                    print(f"API error: {response.status} - {error}")
+                    return None
+        except Exception as e:
+            print(f"Request failed: {type(e).__name__}: {e}")
+            return None
+    
+    def extract_triton_code(self, completion: str) -> Optional[str]:
+        return extract_triton_code(completion)
+    
+    async def validate_on_modal(
+        self,
+        triton_code: str,
+        pytorch_code: str,
+        sample: dict,
+    ) -> dict:
+        """
+        Validate the generated Triton kernel on Modal H100.
+
+        Args:
+            triton_code: The generated Triton kernel
+            pytorch_code: The original PyTorch code
+            sample: The sample dict with metadata
+
+        Returns:
+            Benchmark result dict
+        """
+        try:
+            # Use the new benchmark_kernelbench function that properly handles
+            # the KernelBench/KernelBook pattern with get_inputs() and get_init_inputs()
+            # KernelBook samples have an entry_point field specifying the class name
+            entry_point = sample.get("entry_point", "Model")
+
+            # Run blocking Modal .remote() call in a thread so it doesn't
+            # block the asyncio event loop — enables parallel validations
+            result = await asyncio.to_thread(
+                benchmark_kernelbench.remote,
+                triton_code=triton_code,
+                pytorch_code=pytorch_code,
+                n_correctness=5,
+                n_trials=20,
+                kernel_name=sample.get("name", "generated_kernel"),
+                entry_point=entry_point,
+                rtol=1e-4,
+                atol=1e-4,
+            )
+            return result
+        except Exception as e:
+            return {
+                "correctness": False,
+                "speedup": 0.0,
+                "error": str(e),
+            }
+
+    async def process_sample(
+        self,
+        sample: dict,
+        session: aiohttp.ClientSession,
+    ) -> Optional[dict]:
+        """
+        Process a single sample: generate, extract, validate.
+        
+        Args:
+            sample: The sample dict from dataloader
+            session: aiohttp session
+            
+        Returns:
+            Trace dict or None if failed
+        """
+        sample_key = self._get_sample_key(sample)
+        
+        # Skip if already processed
+        if sample_key in self.processed_keys:
+            return None
+        
+        pytorch_code = sample["pytorch_code"]
+
+        # Step 1: Generate completion
+        print(f"Generating completion for {sample_key}...")
+        messages = [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": USER_PROMPT_TEMPLATE.format(pytorch_code=pytorch_code)},
+        ]
+        response = await self.generate_completion(messages, session)
+        if not response:
+            return None
+        
+        completion = response.get("content")
+        model_reasoning = response.get("reasoning")  # Internal chain-of-thought from GLM-4.5-Air
+        
+        # Validate content is not None
+        if not completion:
+            print(f"API returned empty content for {sample_key}")
+            return None
+        
+        # Step 2: Extract Triton code (reasoning is in model_reasoning via vLLM reasoning_content)
+        triton_code = self.extract_triton_code(completion)
+        
+        if not triton_code:
+            print(f"Failed to extract Triton code for {sample_key}")
+            return {
+                "sample_key": sample_key,
+                "error": "Triton extraction failed",
+                "full_completion": completion,
+                "model_reasoning": model_reasoning
+            }
+        
+        # Step 3: Pre-validate locally, then validate on Modal
+        pre_error = pre_validate_triton_code(triton_code)
+        if pre_error:
+            print(f"Pre-validation failed for {sample_key}: {pre_error}")
+            result = {"correctness": False, "speedup": 0.0, "error": pre_error}
+        else:
+            print(f"Validating {sample_key} on Modal H100...")
+            result = await self.validate_on_modal(triton_code, pytorch_code, sample)
+            print(f"Validation complete for {sample_key}: Correct={result.get('correctness')}, Speedup={result.get('speedup')}x")
+        
+        # Create trace
+        trace = {
+            "sample_key": sample_key,
+            "source": sample.get("source"),
+            "level": sample.get("level"),
+            "name": sample.get("name"),
+            "problem_id": sample.get("problem_id"),
+            "pytorch_code": pytorch_code,
+            "reasoning": model_reasoning,  # Chain-of-thought from vLLM reasoning_content
+            "triton_code": triton_code,
+            "full_completion": completion,
+            "result": {
+                "correctness": result.get("correctness", False),
+                "speedup": result.get("speedup", 0.0),
+                "fast_0": result.get("fast_0", False),
+                "fast_1": result.get("fast_1", False),
+                "fast_2": result.get("fast_2", False),
+                "error": result.get("error"),
+            },
+            "timestamp": datetime.now().isoformat(),
+        }
+        
+        return trace
+    
+    def _save_multiturn_traces(self, traces: list[dict]):
+        """Save completed multi-turn traces to JSON."""
+        with open(OUTPUT_FILE_MULTITURN, "w") as f:
+            json.dump(traces, f, indent=2, default=str)
+
+    def _save_failed_tasks(self, failed_tasks: list[dict]):
+        """Save failed task traces (all turns incorrect) to a separate JSON."""
+        with open(OUTPUT_FILE_MULTITURN_FAILED, "w") as f:
+            json.dump(failed_tasks, f, indent=2, default=str)
+
+    def _save_incomplete_traces(self, queue, in_flight_items: list[dict] | None = None):
+        """Save in-progress items (mid-turn) so progress isn't lost on kill.
+
+        Captures TWO sources of incomplete work:
+        1. Items still sitting in the queue (waiting for their next turn)
+        2. In-flight items that were popped from the queue for processing
+           but haven't been finalized yet (e.g. crash during Modal validation)
+
+        Items that are finalized (DONE) are NOT here — they live in the
+        main output file. This file is overwritten every batch cycle so
+        completed items are automatically removed.
+        """
+        incomplete_dir = Path("incomplete")
+        incomplete_dir.mkdir(exist_ok=True)
+
+        # Combine queue items + in-flight items
+        all_items = list(queue.queue)
+        if in_flight_items:
+            all_items.extend(in_flight_items)
+
+        incomplete = []
+        for item in all_items:
+            # Save ALL items — even first-turn ones with no history yet,
+            # so we can track what was in progress and resume later
+            incomplete.append({
+                "sample_key": item["sample_key"],
+                "source": item["sample"].get("source"),
+                "level": item["sample"].get("level"),
+                "name": item["sample"].get("name"),
+                "problem_id": item["sample"].get("problem_id"),
+                "pytorch_code": item["pytorch_code"],
+                "current_turn": item["turn_num"],
+                "turns": item.get("turns_history", []),
+                "full_messages": item["messages"],
+                "status": "incomplete",
+                "timestamp": datetime.now().isoformat(),
+            })
+        with open(incomplete_dir / "incomplete_traces.json", "w") as f:
+            json.dump(incomplete, f, indent=2, default=str)
+        if incomplete:
+            print(f"  Saved {len(incomplete)} incomplete traces to {incomplete_dir / 'incomplete_traces.json'}")
+
+    async def run_multi_turn(self, batch_size: int = 4, max_turns: int = 4, modal_parallel: int = 16):
+        """
+        Run multi-turn iterative refinement — async pipeline.
+
+        Failed or slow kernels get feedback and retry up to max_turns times.
+
+        Modal validations run in parallel (up to modal_parallel at a time)
+        using Modal's .starmap() API, which spins up separate containers
+        for each call automatically.
+
+        Args:
+            batch_size: Number of concurrent vLLM generation requests per batch.
+            max_turns: Maximum refinement turns per sample.
+            modal_parallel: Max parallel Modal validation calls via .starmap().
+        """
+        samples = self.dataloader.load_all()
+        queue = MultiTurnQueue(max_turns=max_turns)
+
+        # Create output file immediately so it exists from the start
+        Path(OUTPUT_FILE_MULTITURN).parent.mkdir(parents=True, exist_ok=True)
+        if not Path(OUTPUT_FILE_MULTITURN).exists():
+            with open(OUTPUT_FILE_MULTITURN, "w") as f:
+                json.dump([], f)
+
+        # Keys already solved in previous runs (both successful and failed)
+        # so we skip them entirely on re-execution
+        solved_keys = load_solved_keys(
+            OUTPUT_FILE_MULTITURN,
+            OUTPUT_FILE_MULTITURN_FAILED,
+            OUTPUT_FILE_MULTITURN_CORRECT,
+        )
+        skip_keys = self.processed_keys | solved_keys
+
+        # Build initial items and add to queue
+        for sample in samples:
+            sample_key = self._get_sample_key(sample)
+            if sample_key in skip_keys:
+                continue
+            item = {
+                "sample_key": sample_key,
+                "sample": sample,
+                "pytorch_code": sample["pytorch_code"],
+                "messages": [
+                    {"role": "system", "content": SYSTEM_PROMPT + MULTI_TURN_ADDENDUM},
+                    {"role": "user", "content": USER_PROMPT_TEMPLATE.format(
+                        pytorch_code=sample["pytorch_code"]
+                    )},
+                ],
+                "turn_num": 1,
+                "turns_history": [],
+            }
+            queue.add(item)
+
+        print(f"Multi-turn queue initialized: {len(queue)} items, max_turns={max_turns}, modal_parallel={modal_parallel}")
+
+        with modal_app.run():
+            async with aiohttp.ClientSession() as session:
+                # Track in-flight batch items so they can be saved on crash
+                in_flight_batch: list[dict] = []
+                try:
+                    while len(queue) > 0:
+                        # Pop a batch
+                        batch = []
+                        for _ in range(min(batch_size, len(queue))):
+                            batch.append(queue.pop())
+
+                        # Track in-flight items for crash recovery
+                        in_flight_batch = list(batch)
+
+                        # Generate completions concurrently on vLLM
+                        responses = await asyncio.gather(*[
+                            self.generate_completion(item["messages"], session)
+                            for item in batch
+                        ])
+
+                        # Extract code locally, split into items needing Modal vs already resolved
+                        modal_items = []      # (index, item, triton_code) - need Modal validation
+                        resolved_items = []   # (index, item, result, completion, reasoning) - already resolved locally
+
+                        for idx, (item, response) in enumerate(zip(batch, responses)):
+                            if not response or not response.get("content"):
+                                result = {"correctness": False, "error": "Generation failed"}
+                                resolved_items.append((idx, item, result, None, None))
+                                continue
+
+                            completion = response["content"]
+                            reasoning = response.get("reasoning")
+                            triton_code = self.extract_triton_code(completion)
+
+                            if not triton_code:
+                                result = {"correctness": False, "error": "Triton code extraction failed"}
+                                resolved_items.append((idx, item, result, completion, reasoning))
+                            else:
+                                pre_error = pre_validate_triton_code(triton_code)
+                                if pre_error:
+                                    print(f"  {item['sample_key']} turn {item['turn_num']} pre-validation failed: {pre_error}")
+                                    result = {"correctness": False, "speedup": 0.0, "error": pre_error}
+                                    resolved_items.append((idx, item, result, completion, reasoning))
+                                else:
+                                    modal_items.append((idx, item, triton_code, completion, reasoning))
+
+                        # Validate on Modal in parallel using .starmap()
+                        # Process in chunks of modal_parallel to limit concurrency
+                        modal_results = {}  # idx -> result
+                        for chunk_start in range(0, len(modal_items), modal_parallel):
+                            chunk = modal_items[chunk_start:chunk_start + modal_parallel]
+                            print(f"Validating {len(chunk)} kernels on Modal H100 in parallel...")
+
+                            starmap_inputs = [
+                                (
+                                    triton_code,                                    # triton_code
+                                    item["pytorch_code"],                           # pytorch_code
+                                    5,                                              # n_correctness
+                                    20,                                             # n_trials
+                                    item["sample"].get("name", "generated_kernel"), # kernel_name
+                                    item["sample"].get("entry_point", "Model"),     # entry_point
+                                    1e-4,                                           # rtol
+                                    1e-4,                                           # atol
+                                )
+                                for _, item, triton_code, _, _ in chunk
+                            ]
+
+                            # .starmap() runs all inputs in parallel across Modal containers
+                            # return_exceptions=True returns Exception objects instead of raising
+                            results_iter = await asyncio.to_thread(
+                                lambda inputs=starmap_inputs: list(
+                                    benchmark_kernelbench.starmap(inputs, return_exceptions=True, wrap_returned_exceptions=False)
+                                )
+                            )
+
+                            for (idx, item, triton_code, _, _), result in zip(chunk, results_iter):
+                                if isinstance(result, Exception):
+                                    modal_results[idx] = {
+                                        "correctness": False,
+                                        "speedup": 0.0,
+                                        "error": str(result),
+                                    }
+                                else:
+                                    modal_results[idx] = result
+
+                            print(f"  Modal chunk done ({len(chunk)} results)")
+
+                        # Route all results (resolved locally + Modal validated)
+                        all_items = []
+                        for idx, item, result, completion, reasoning in resolved_items:
+                            triton_code = None
+                            all_items.append((idx, item, result, triton_code, completion, reasoning))
+                        for idx, item, triton_code, completion, reasoning in modal_items:
+                            result = modal_results[idx]
+                            all_items.append((idx, item, result, triton_code, completion, reasoning))
+
+                        # Sort by original index to keep deterministic ordering
+                        all_items.sort(key=lambda x: x[0])
+
+                        for _, item, result, triton_code, completion, reasoning in all_items:
+                            turn_result = {
+                                "turn": item["turn_num"],
+                                "reasoning": reasoning,
+                                "triton_code": triton_code,
+                                "full_completion": completion,
+                                "result": result,
+                                "feedback_given": None,
+                            }
+                            item["turns_history"].append(turn_result)
+
+                            stop, reason = queue.should_stop(item["turn_num"], result)
+                            if stop:
+                                queue.finalize(item, reason)
+                                correctness = result.get("correctness", False)
+                                speedup = result.get("speedup", 0.0)
+                                print(f"  {item['sample_key']} DONE ({reason}): correct={correctness}, speedup={speedup:.2f}x, turns={item['turn_num']}")
+                                # Save immediately on every finalization
+                                self._save_multiturn_traces(queue.completed_traces)
+                                if queue.failed_tasks:
+                                    self._save_failed_tasks(queue.failed_tasks)
+                            else:
+                                feedback = queue.build_feedback(result)
+                                turn_result["feedback_given"] = feedback
+                                queue.requeue_with_feedback(item, feedback, completion or "")
+                                print(f"  {item['sample_key']} turn {item['turn_num'] - 1} -> retrying (queue size: {len(queue)})")
+
+                        # Batch fully processed — clear in-flight tracker
+                        in_flight_batch = []
+
+                        # Save incomplete (mid-turn) items still in queue
+                        self._save_incomplete_traces(queue)
+                finally:
+                    # Crash/interrupt safety: save whatever we have
+                    print("\nSaving all traces before exit...")
+                    if queue.completed_traces:
+                        self._save_multiturn_traces(queue.completed_traces)
+                    if queue.failed_tasks:
+                        self._save_failed_tasks(queue.failed_tasks)
+                    # Save in-flight items (popped from queue but not yet processed)
+                    # plus remaining queue items to incomplete/
+                    self._save_incomplete_traces(queue, in_flight_items=in_flight_batch)
+
+        traces = queue.completed_traces
+        success_count = sum(1 for t in traces if t.get("stop_reason") == "success_fast")
+        print("\n" + "=" * 60)
+        print("MULTI-TURN TRACE GENERATION COMPLETE")
+        print("=" * 60)
+        print(f"Total traces: {len(traces)}")
+        print(f"Successful (correct + fast): {success_count}")
+        print(f"Max turns reached: {len(traces) - success_count}")
+        print(f"Failed (requeued once, all turns incorrect): {len(queue.failed_tasks)}")
+        print(f"Output file: {OUTPUT_FILE_MULTITURN}")
+        if queue.failed_tasks:
+            print(f"Failed tasks file: {OUTPUT_FILE_MULTITURN_FAILED}")
+
+        return traces
+
+    async def run(
+        self,
+        batch_size: int = 10,
+        save_interval: int = 10,
+    ):
+        """
+        Run the orchestrator.
+
+        Args:
+            batch_size: Number of concurrent requests
+            save_interval: Save traces every N samples
+        """
+        samples = self.dataloader.load_all()
+
+        print(f"Total samples: {len(samples)}")
+        print(f"Already processed: {len(self.processed_keys)}")
+        print(f"Remaining: {len(samples) - len(self.processed_keys)}")
+        print()
+
+        # Run within Modal app context so .remote() calls work
+        with modal_app.run():
+            async with aiohttp.ClientSession() as session:
+                # Process in batches
+                processed = 0
+
+                for i in tqdm(range(0, len(samples), batch_size), desc="Processing"):
+                    batch = samples[i:i + batch_size]
+
+                    # Process batch concurrently
+                    tasks = [
+                        self.process_sample(sample, session)
+                        for sample in batch
+                    ]
+                    results = await asyncio.gather(*tasks)
+
+                    # Add all traces to the list so user can see progress
+                    for trace in results:
+                        if trace:
+                            self.traces.append(trace)
+                            self.processed_keys.add(trace["sample_key"])
+                            processed += 1
+
+                            if trace.get("result", {}).get("correctness"):
+                                print(f"  {trace['sample_key']} is CORRECT ({trace['result']['speedup']:.2f}x)")
+                            else:
+                                err = trace.get("result", {}).get("error") or trace.get("error", "Unknown error")
+                                print(f"  {trace['sample_key']} FAILED: {err}")
+
+                    # Save after every batch for better visibility during development
+                    self._save_traces()
+                    if processed > 0:
+                        print(f"Saved {len(self.traces)} traces to {self.output_file}")
+
+        # Final save
+        self._save_traces()
+
+        # Print summary
+        correct_count = sum(1 for t in self.traces if t.get("result", {}).get("correctness"))
+        fast_1_count = sum(1 for t in self.traces if t.get("result", {}).get("fast_1"))
+        fast_2_count = sum(1 for t in self.traces if t.get("result", {}).get("fast_2"))
+
+        print("\n" + "=" * 60)
+        print("TRACE GENERATION COMPLETE")
+        print("=" * 60)
+        print(f"Total traces saved: {len(self.traces)}")
+        print(f"Correct (fast_0): {correct_count}")
+        print(f"Faster than PyTorch (fast_1): {fast_1_count}")
+        print(f"2x faster (fast_2): {fast_2_count}")
+        print(f"Output file: {self.output_file}")
+
+
+def main():
+    """Main entry point."""
+    import argparse
+    
+    parser = argparse.ArgumentParser(description="Generate reasoning traces for Triton kernels")
+    parser.add_argument("--vllm-url", default=VLLM_BASE_URL, help="vLLM server URL")
+    parser.add_argument("--output", default=OUTPUT_FILE, help="Output JSON file")
+    parser.add_argument("--kernelbook-samples", type=int, default=3000)
+    parser.add_argument("--kernelbench-samples", type=int, default=500)
+    parser.add_argument("--batch-size", type=int, default=128)
+    parser.add_argument("--save-interval", type=int, default=10)
+    parser.add_argument("--multi-turn", action="store_true", help="Enable multi-turn iterative refinement")
+    parser.add_argument("--max-turns", type=int, default=4, help="Max turns per sample in multi-turn mode")
+    parser.add_argument("--modal-parallel", type=int, default=32, help="Max parallel Modal validation calls (default: 32)")
+
+    args = parser.parse_args()
+
+    orchestrator = TraceOrchestrator(
+        vllm_base_url=args.vllm_url,
+        output_file=args.output,
+        kernelbook_samples=args.kernelbook_samples,
+        kernelbench_samples=args.kernelbench_samples,
+    )
+
+    if args.multi_turn:
+        asyncio.run(orchestrator.run_multi_turn(
+            batch_size=args.batch_size,
+            max_turns=args.max_turns,
+            modal_parallel=args.modal_parallel,
+        ))
+    else:
+        asyncio.run(orchestrator.run(
+            batch_size=args.batch_size,
+            save_interval=args.save_interval,
+        ))
+
+
+if __name__ == "__main__":
+    main()

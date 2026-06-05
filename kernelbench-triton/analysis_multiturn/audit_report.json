@@ -1,0 +1,1117 @@
+{
+  "total_traces": 207,
+  "flagged_count": 207,
+  "clean_count": 0,
+  "summary": {
+    "torch_in_jit": 204,
+    "torch_in_wrapper": 10,
+    "no_triton_ops": 1,
+    "identity_kernel": 3,
+    "hardcoded_output": 1,
+    "no_triton_jit": 3,
+    "trivially_short": 3
+  },
+  "flagged_traces": {
+    "kernelbook_1174": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty_like']"
+      ]
+    },
+    "kernelbook_603": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.tensor', 'torch.empty', 'torch.empty']"
+      ]
+    },
+    "kernelbook_485": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty_like', 'torch.empty', 'torch.zeros']"
+      ]
+    },
+    "kernelbook_242": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty']"
+      ]
+    },
+    "kernelbook_1152": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.nn', 'torch.nn', 'torch.nn', 'torch.nn', 'torch.clamp', 'torch.empty_like']",
+        "nn.* calls in @triton.jit: ['nn.functional', 'nn.functional', 'nn.functional', 'nn.functional']"
+      ],
+      "torch_in_wrapper": [
+        "Suspicious torch op in wrapper: ['torch.nn.functional', 'torch.nn.functional', 'torch.nn.functional', 'torch.nn.functional']"
+      ]
+    },
+    "kernelbook_899": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.zeros']"
+      ]
+    },
+    "kernelbook_577": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty']"
+      ]
+    },
+    "kernelbench_9": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty']"
+      ]
+    },
+    "kernelbook_558": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty_like']"
+      ]
+    },
+    "kernelbook_1491": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty']"
+      ]
+    },
+    "kernelbench_28": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty_like']"
+      ]
+    },
+    "kernelbench_80": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.nn', 'torch.empty']",
+        "nn.* calls in @triton.jit: ['nn.functional']"
+      ],
+      "torch_in_wrapper": [
+        "Suspicious torch op in wrapper: ['torch.nn.functional']"
+      ],
+      "no_triton_ops": [
+        "@triton.jit kernel uses no tl.* operations"
+      ]
+    },
+    "kernelbook_563": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty']"
+      ]
+    },
+    "kernelbook_695": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty']",
+        "F.* calls in @triton.jit: ['F.interpolate']"
+      ]
+    },
+    "kernelbook_1425": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty', 'torch.empty']"
+      ]
+    },
+    "kernelbook_1312": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty', 'torch.empty', 'torch.empty_like', 'torch.empty', 'torch.empty_like', 'torch.empty_like', 'torch.empty_like', 'torch.empty_like', 'torch.empty_like', 'torch.empty_like']"
+      ]
+    },
+    "kernelbook_596": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.tensor', 'torch.float32', 'torch.empty', 'torch.float32', 'torch.empty', 'torch.float32', 'torch.empty', 'torch.float32']"
+      ]
+    },
+    "kernelbook_735": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty_like']"
+      ]
+    },
+    "kernelbook_984": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty', 'torch.empty', 'torch.empty', 'torch.empty', 'torch.empty', 'torch.empty']"
+      ]
+    },
+    "kernelbook_325": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.tensor', 'torch.empty', 'torch.float32', 'torch.empty', 'torch.float32']"
+      ],
+      "identity_kernel": [
+        "Kernel may be identity (load + store only, no computation)"
+      ]
+    },
+    "kernelbook_32": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty_like']"
+      ]
+    },
+    "kernelbook_560": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty_like']"
+      ]
+    },
+    "kernelbook_640": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty']"
+      ]
+    },
+    "kernelbook_900": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.zeros', 'torch.zeros', 'torch.zeros', 'torch.ones', 'torch.zeros', 'torch.empty']"
+      ]
+    },
+    "kernelbook_1483": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty']"
+      ]
+    },
+    "kernelbook_646": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty_like']"
+      ]
+    },
+    "kernelbook_1158": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty', 'torch.float32']"
+      ]
+    },
+    "kernelbook_1354": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty_like', 'torch.empty', 'torch.float32']"
+      ]
+    },
+    "kernelbench_5": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.conv2d', 'torch.empty_like', 'torch.max_pool2d', 'torch.conv2d', 'torch.empty_like', 'torch.max_pool2d', 'torch.conv2d', 'torch.empty_like', 'torch.conv2d', 'torch.empty_like', 'torch.conv2d', 'torch.empty_like', 'torch.max_pool2d', 'torch.flatten', 'torch.empty', 'torch.empty_like', 'torch.empty', 'torch.empty_like', 'torch.empty']"
+      ],
+      "torch_in_wrapper": [
+        "Suspicious torch op in wrapper: ['torch.conv', 'torch.conv', 'torch.conv', 'torch.conv', 'torch.conv']",
+        "Suspicious torch op in wrapper: ['torch.max_pool', 'torch.max_pool', 'torch.max_pool']"
+      ]
+    },
+    "kernelbook_81": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.nn', 'torch.cat', 'torch.nn', 'torch.nn', 'torch.empty_like', 'torch.cat', 'torch.nn', 'torch.nn', 'torch.empty_like']",
+        "nn.* calls in @triton.jit: ['nn.functional', 'nn.functional', 'nn.functional', 'nn.functional', 'nn.functional']"
+      ],
+      "torch_in_wrapper": [
+        "Suspicious torch op in wrapper: ['torch.nn.functional', 'torch.nn.functional', 'torch.nn.functional', 'torch.nn.functional', 'torch.nn.functional']"
+      ]
+    },
+    "kernelbook_82": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.ones', 'torch.empty_like']"
+      ]
+    },
+    "kernelbook_373": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.zeros', 'torch.float32']"
+      ]
+    },
+    "kernelbook_66": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.zeros']"
+      ]
+    },
+    "kernelbook_671": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.zeros', 'torch.float32']"
+      ]
+    },
+    "kernelbook_863": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty']"
+      ]
+    },
+    "kernelbook_1386": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.Tensor', 'torch.tensor', 'torch.float32', 'torch.empty', 'torch.float32', 'torch.tensor', 'torch.float32']"
+      ]
+    },
+    "kernelbook_1183": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty', 'torch.sum']"
+      ]
+    },
+    "kernelbook_201": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty_like', 'torch.empty_like']"
+      ]
+    },
+    "kernelbook_1408": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.tensor', 'torch.empty', 'torch.max', 'torch.empty', 'torch.sum']"
+      ]
+    },
+    "kernelbook_1176": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty', 'torch.float32']"
+      ]
+    },
+    "kernelbook_2284": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty']"
+      ]
+    },
+    "kernelbook_474": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.tensor', 'torch.empty', 'torch.float32']"
+      ],
+      "hardcoded_output": [
+        "Possible hardcoded constant in tl.store"
+      ]
+    },
+    "kernelbook_167": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty']"
+      ]
+    },
+    "kernelbook_528": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty_like']"
+      ]
+    },
+    "kernelbook_409": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty_like']"
+      ]
+    },
+    "kernelbook_913": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty_like']"
+      ]
+    },
+    "kernelbook_376": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty', 'torch.empty_like']"
+      ],
+      "identity_kernel": [
+        "Kernel may be identity (load + store only, no computation)"
+      ]
+    },
+    "kernelbook_1116": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty_like']"
+      ]
+    },
+    "kernelbook_2574": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty']"
+      ]
+    },
+    "kernelbook_2268": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty_like']"
+      ]
+    },
+    "kernelbook_2555": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty']"
+      ]
+    },
+    "kernelbook_699": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.zeros', 'torch.float32']"
+      ]
+    },
+    "kernelbook_377": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty', 'torch.float32', 'torch.mean']"
+      ]
+    },
+    "kernelbook_691": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty']"
+      ]
+    },
+    "kernelbook_2235": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty']"
+      ]
+    },
+    "kernelbook_2989": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty']"
+      ]
+    },
+    "kernelbook_2793": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty']"
+      ]
+    },
+    "kernelbook_1776": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty_like', 'torch.empty', 'torch.empty_like', 'torch.empty_like', 'torch.empty', 'torch.empty', 'torch.empty_like']"
+      ]
+    },
+    "kernelbook_1226": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty', 'torch.empty']"
+      ]
+    },
+    "kernelbook_2444": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty']"
+      ]
+    },
+    "kernelbook_2143": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty_like']"
+      ]
+    },
+    "kernelbook_1593": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.zeros', 'torch.float32']"
+      ]
+    },
+    "kernelbook_1119": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty']"
+      ]
+    },
+    "kernelbook_891": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty', 'torch.float32']"
+      ]
+    },
+    "kernelbook_2732": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty']"
+      ]
+    },
+    "kernelbook_1768": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty', 'torch.empty', 'torch.clamp']"
+      ]
+    },
+    "kernelbook_476": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty']"
+      ]
+    },
+    "kernelbook_2896": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty', 'torch.empty']"
+      ]
+    },
+    "kernelbook_883": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty', 'torch.float32']"
+      ]
+    },
+    "kernelbook_104": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty']"
+      ]
+    },
+    "kernelbook_2902": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty']"
+      ]
+    },
+    "kernelbook_1090": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.float32', 'torch.float32', 'torch.empty', 'torch.float32']"
+      ]
+    },
+    "kernelbook_1102": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty']"
+      ]
+    },
+    "kernelbook_2115": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty']"
+      ]
+    },
+    "kernelbook_1253": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty']"
+      ]
+    },
+    "kernelbook_1137": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.tensor', 'torch.empty', 'torch.float32', 'torch.tensor']"
+      ]
+    },
+    "kernelbook_1750": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty', 'torch.finfo', 'torch.iinfo']"
+      ]
+    },
+    "kernelbook_2832": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty']"
+      ]
+    },
+    "kernelbook_2997": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.ones', 'torch.zeros', 'torch.empty', 'torch.empty', 'torch.empty_like']"
+      ]
+    },
+    "kernelbook_1583": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty', 'torch.empty', 'torch.cat']"
+      ]
+    },
+    "kernelbook_2505": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty_like']"
+      ]
+    },
+    "kernelbook_1505": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty', 'torch.int64', 'torch.empty', 'torch.int64', 'torch.cat']"
+      ]
+    },
+    "kernelbook_2109": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty']"
+      ]
+    },
+    "kernelbook_2000": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.zeros', 'torch.zeros']"
+      ]
+    },
+    "kernelbook_2476": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty_like']"
+      ]
+    },
+    "kernelbook_1489": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty', 'torch.empty_like']"
+      ]
+    },
+    "kernelbook_1553": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty_like']"
+      ]
+    },
+    "kernelbook_2384": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty']"
+      ]
+    },
+    "kernelbook_1342": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty_like']"
+      ]
+    },
+    "kernelbook_1673": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.zeros', 'torch.float32']"
+      ]
+    },
+    "kernelbook_2396": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty', 'torch.empty_like', 'torch.nn', 'torch.empty', 'torch.empty_like', 'torch.nn', 'torch.nn', 'torch.empty', 'torch.empty_like', 'torch.nn', 'torch.empty', 'torch.empty_like']",
+        "nn.* calls in @triton.jit: ['nn.functional', 'nn.functional', 'nn.Upsample', 'nn.functional', 'nn.functional']"
+      ],
+      "torch_in_wrapper": [
+        "Suspicious torch op in wrapper: ['torch.nn.functional', 'torch.nn.functional', 'torch.nn.functional', 'torch.nn.functional']"
+      ]
+    },
+    "kernelbook_2338": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty']"
+      ]
+    },
+    "kernelbook_1008": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty', 'torch.empty', 'torch.empty', 'torch.empty', 'torch.empty', 'torch.empty', 'torch.empty', 'torch.empty', 'torch.empty']"
+      ]
+    },
+    "kernelbook_276": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty', 'torch.empty', 'torch.empty_like', 'torch.empty_like', 'torch.empty', 'torch.empty', 'torch.sum']"
+      ]
+    },
+    "kernelbook_1297": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty', 'torch.sum']"
+      ]
+    },
+    "kernelbook_2520": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty_like']"
+      ]
+    },
+    "kernelbench_64": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty', 'torch.empty']"
+      ]
+    },
+    "kernelbook_2211": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty']"
+      ]
+    },
+    "kernelbook_2090": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty', 'torch.float32']"
+      ]
+    },
+    "kernelbook_2056": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty']"
+      ]
+    },
+    "kernelbook_698": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.zeros', 'torch.float32', 'torch.sqrt']",
+        "F.* calls in @triton.jit: ['F.interpolate']"
+      ]
+    },
+    "kernelbench_21": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty']"
+      ]
+    },
+    "kernelbook_2780": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty_like']"
+      ]
+    },
+    "kernelbook_961": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty_like']"
+      ]
+    },
+    "kernelbench_30": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty_like']"
+      ]
+    },
+    "kernelbook_189": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.zeros', 'torch.float32', 'torch.empty', 'torch.float32']"
+      ]
+    },
+    "kernelbook_52": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty']"
+      ]
+    },
+    "kernelbook_316": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty']"
+      ]
+    },
+    "kernelbook_1282": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty']"
+      ]
+    },
+    "kernelbook_393": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty_like']"
+      ]
+    },
+    "kernelbook_1283": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty']"
+      ]
+    },
+    "kernelbook_1745": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.tensor', 'torch.empty']"
+      ]
+    },
+    "kernelbook_386": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty_like']"
+      ]
+    },
+    "kernelbook_147": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty_like']"
+      ]
+    },
+    "kernelbook_929": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.float32', 'torch.float32', 'torch.tensor', 'torch.float32', 'torch.empty', 'torch.float32', 'torch.empty', 'torch.float32', 'torch.empty', 'torch.float32', 'torch.empty', 'torch.float32', 'torch.empty', 'torch.float32', 'torch.empty', 'torch.float32', 'torch.empty', 'torch.float32']"
+      ]
+    },
+    "kernelbook_2125": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty']"
+      ]
+    },
+    "kernelbook_526": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.rand', 'torch.empty_like']"
+      ]
+    },
+    "kernelbook_936": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.is_floating_point', 'torch.float32', 'torch.empty', 'torch.zeros']"
+      ]
+    },
+    "kernelbook_2575": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty_like']"
+      ]
+    },
+    "kernelbook_2479": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty']"
+      ]
+    },
+    "kernelbook_1977": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.float32', 'torch.float32', 'torch.empty', 'torch.float32', 'torch.int32', 'torch.int64']"
+      ]
+    },
+    "kernelbench_40": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty', 'torch.float32', 'torch.empty', 'torch.float32', 'torch.empty_like']"
+      ]
+    },
+    "kernelbook_946": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.full', 'torch.empty_like']"
+      ]
+    },
+    "kernelbook_1009": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty']"
+      ]
+    },
+    "kernelbook_2711": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty_like']"
+      ]
+    },
+    "kernelbook_123": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty_like']"
+      ]
+    },
+    "kernelbook_723": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty_like']"
+      ]
+    },
+    "kernelbook_1163": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty']"
+      ]
+    },
+    "kernelbook_732": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty_like']"
+      ]
+    },
+    "kernelbook_2478": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty_like']"
+      ]
+    },
+    "kernelbook_2714": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty_like']"
+      ]
+    },
+    "kernelbook_2742": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty']"
+      ]
+    },
+    "kernelbook_1910": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty_like']"
+      ]
+    },
+    "kernelbook_464": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty', 'torch.empty']"
+      ]
+    },
+    "kernelbook_1264": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty']"
+      ]
+    },
+    "kernelbook_1565": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty_like']"
+      ]
+    },
+    "kernelbook_2342": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.zeros']"
+      ]
+    },
+    "kernelbook_1050": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.float32', 'torch.zeros_like', 'torch.empty', 'torch.float32', 'torch.empty', 'torch.float32', 'torch.empty', 'torch.float32', 'torch.empty', 'torch.float32', 'torch.clamp', 'torch.sqrt', 'torch.empty_like']"
+      ]
+    },
+    "kernelbook_2704": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty']"
+      ]
+    },
+    "kernelbench_27": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.conv3d', 'torch.nn', 'torch.nn', 'torch.empty']",
+        "nn.* calls in @triton.jit: ['nn.functional', 'nn.functional']"
+      ],
+      "torch_in_wrapper": [
+        "Suspicious torch op in wrapper: ['torch.conv']",
+        "Suspicious torch op in wrapper: ['torch.nn.functional', 'torch.nn.functional']"
+      ]
+    },
+    "kernelbook_1289": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty', 'torch.empty']"
+      ]
+    },
+    "kernelbook_1053": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty']"
+      ]
+    },
+    "kernelbook_2686": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty', 'torch.cat', 'torch.empty', 'torch.empty']"
+      ]
+    },
+    "kernelbook_2405": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty']"
+      ]
+    },
+    "kernelbook_301": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty_like']"
+      ]
+    },
+    "kernelbook_87": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty', 'torch.float32', 'torch.zeros', 'torch.float32']"
+      ]
+    },
+    "kernelbook_234": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty']"
+      ]
+    },
+    "kernelbook_776": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty']"
+      ]
+    },
+    "kernelbook_1812": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty', 'torch.float32', 'torch.empty', 'torch.float32']"
+      ]
+    },
+    "kernelbook_2341": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty', 'torch.float32']"
+      ]
+    },
+    "kernelbook_790": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty']"
+      ]
+    },
+    "kernelbook_2610": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty_like']"
+      ],
+      "identity_kernel": [
+        "Kernel may be identity (load + store only, no computation)"
+      ]
+    },
+    "kernelbook_1223": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty', 'torch.empty', 'torch.empty', 'torch.empty', 'torch.empty']"
+      ]
+    },
+    "kernelbook_980": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty_like']"
+      ]
+    },
+    "kernelbook_1400": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty', 'torch.empty_like']"
+      ]
+    },
+    "kernelbook_632": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty', 'torch.empty', 'torch.empty']"
+      ]
+    },
+    "kernelbook_1204": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty', 'torch.empty', 'torch.empty', 'torch.tensor', 'torch.tensor', 'torch.tensor', 'torch.tensor', 'torch.tensor', 'torch.tensor', 'torch.tensor', 'torch.tensor', 'torch.tensor', 'torch.tensor', 'torch.tensor', 'torch.tensor']"
+      ]
+    },
+    "kernelbook_1326": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty', 'torch.empty', 'torch.empty']"
+      ]
+    },
+    "kernelbook_534": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty', 'torch.empty_like']"
+      ]
+    },
+    "kernelbook_1473": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.cat', 'torch.empty', 'torch.empty']"
+      ]
+    },
+    "kernelbook_1496": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.tensor', 'torch.empty', 'torch.float32', 'torch.sqrt']"
+      ]
+    },
+    "kernelbook_1000": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.conv2d', 'torch.conv2d', 'torch.conv2d', 'torch.empty', 'torch.empty', 'torch.conv2d']"
+      ],
+      "torch_in_wrapper": [
+        "Suspicious torch op in wrapper: ['torch.conv', 'torch.conv', 'torch.conv', 'torch.conv']"
+      ]
+    },
+    "kernelbench_82": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty', 'torch.zeros']"
+      ]
+    },
+    "kernelbook_1733": {
+      "no_triton_jit": [
+        "Empty kernel code"
+      ],
+      "trivially_short": [
+        "No code"
+      ]
+    },
+    "kernelbook_434": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty_like']"
+      ]
+    },
+    "kernelbook_1147": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty', 'torch.empty', 'torch.empty', 'torch.empty', 'torch.empty', 'torch.empty', 'torch.empty', 'torch.empty', 'torch.empty', 'torch.empty']"
+      ]
+    },
+    "kernelbook_1409": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.nn', 'torch.tensor', 'torch.zeros', 'torch.tensor']",
+        "nn.* calls in @triton.jit: ['nn.functional']"
+      ],
+      "torch_in_wrapper": [
+        "Suspicious torch op in wrapper: ['torch.nn.functional']"
+      ]
+    },
+    "kernelbook_1550": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty_like', 'torch.bool']"
+      ]
+    },
+    "kernelbook_1087": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty', 'torch.empty']"
+      ]
+    },
+    "kernelbook_1031": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty']"
+      ]
+    },
+    "kernelbench_39": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty']"
+      ]
+    },
+    "kernelbook_299": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty', 'torch.empty', 'torch.empty_like', 'torch.empty_like', 'torch.empty']"
+      ]
+    },
+    "kernelbook_490": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty']"
+      ]
+    },
+    "kernelbook_2567": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty', 'torch.empty', 'torch.empty']"
+      ]
+    },
+    "kernelbook_905": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty']"
+      ]
+    },
+    "kernelbook_2501": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty_like']"
+      ]
+    },
+    "kernelbook_953": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty']"
+      ]
+    },
+    "kernelbook_2947": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty', 'torch.empty', 'torch.empty']"
+      ]
+    },
+    "kernelbook_2483": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty_like']"
+      ]
+    },
+    "kernelbook_430": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty_like']"
+      ]
+    },
+    "kernelbook_2081": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.nn', 'torch.nn', 'torch.nn', 'torch.empty', 'torch.nn']",
+        "nn.* calls in @triton.jit: ['nn.functional', 'nn.functional', 'nn.functional', 'nn.functional']"
+      ],
+      "torch_in_wrapper": [
+        "Suspicious torch op in wrapper: ['torch.nn.functional', 'torch.nn.functional', 'torch.nn.functional', 'torch.nn.functional']"
+      ]
+    },
+    "kernelbook_1108": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty']"
+      ]
+    },
+    "kernelbook_920": {
+      "no_triton_jit": [
+        "Empty kernel code"
+      ],
+      "trivially_short": [
+        "No code"
+      ]
+    },
+    "kernelbook_57": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty']"
+      ]
+    },
+    "kernelbook_2944": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty', 'torch.empty', 'torch.empty_like']"
+      ]
+    },
+    "kernelbook_517": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty_like']"
+      ]
+    },
+    "kernelbook_2518": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.zeros', 'torch.empty']"
+      ]
+    },
+    "kernelbook_1922": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty', 'torch.empty_like']"
+      ]
+    },
+    "kernelbook_219": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty', 'torch.empty']"
+      ]
+    },
+    "kernelbook_2852": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.zeros']"
+      ]
+    },
+    "kernelbook_1537": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty_like']"
+      ]
+    },
+    "kernelbook_696": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.zeros', 'torch.empty']"
+      ]
+    },
+    "kernelbook_1659": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.cat', 'torch.empty', 'torch.empty_like', 'torch.empty_like', 'torch.empty']"
+      ]
+    },
+    "kernelbook_442": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty', 'torch.empty', 'torch.empty_like']"
+      ]
+    },
+    "kernelbook_1912": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty']"
+      ]
+    },
+    "kernelbook_2236": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty_like']"
+      ]
+    },
+    "kernelbook_530": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.full', 'torch.empty_like']"
+      ]
+    },
+    "kernelbook_1503": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty', 'torch.empty']"
+      ]
+    },
+    "kernelbook_2957": {
+      "no_triton_jit": [
+        "Empty kernel code"
+      ],
+      "trivially_short": [
+        "No code"
+      ]
+    },
+    "kernelbook_2130": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty_like']"
+      ]
+    },
+    "kernelbook_1551": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty_like']"
+      ]
+    },
+    "kernelbench_75": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty', 'torch.zeros']"
+      ]
+    },
+    "kernelbook_2631": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty']"
+      ]
+    },
+    "kernelbook_2059": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.conv2d', 'torch.relu', 'torch.conv2d', 'torch.relu', 'torch.conv2d', 'torch.relu', 'torch.conv2d', 'torch.relu', 'torch.empty']"
+      ],
+      "torch_in_wrapper": [
+        "Suspicious torch op in wrapper: ['torch.conv', 'torch.conv', 'torch.conv', 'torch.conv']",
+        "Suspicious torch op in wrapper: ['torch.relu', 'torch.relu', 'torch.relu', 'torch.relu']"
+      ]
+    },
+    "kernelbook_2325": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty']"
+      ]
+    },
+    "kernelbook_1561": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty_like']"
+      ]
+    },
+    "kernelbook_1618": {
+      "torch_in_jit": [
+        "torch calls in @triton.jit: ['torch.empty']"
+      ]
+    }
+  }
+}
